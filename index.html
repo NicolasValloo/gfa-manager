@@ -422,6 +422,7 @@ select.finput,textarea.finput{background:white;cursor:pointer;resize:vertical}
   <nav class="nav-bar">
     <div class="nav-inner">
       <button class="nav-btn active" data-tab="admin">Administration</button>
+      <button class="nav-btn" data-tab="campagnes">Campagnes</button>
       <button class="nav-btn" data-tab="associes">Vue Associés</button>
     </div>
   </nav>
@@ -442,7 +443,9 @@ select.finput,textarea.finput{background:white;cursor:pointer;resize:vertical}
 const STATE = {
   user: null,
   groupements: [],
+  campagnes: [],
   ficheId: null,
+  campagneId: null,
   activeTab: 'admin',
 };
 
@@ -532,11 +535,28 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
 //  CHARGEMENT DONNÉES
 // ════════════════════════════════════════════════════════════════
 async function loadAll(){
-  $('main-content').innerHTML='<div class="loading">Chargement des groupements…</div>';
+  $('main-content').innerHTML='<div class="loading">Chargement…</div>';
+  
+  // Charger groupements + associés
   STATE.groupements = await window.GFA.getGroupements();
   for(const g of STATE.groupements){
     g.associes = await window.GFA.getAssocies(g.id);
   }
+  
+  // Charger campagnes
+  const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+  const campSnap = await getDocs(collection(window.GFA.db, 'campagnes'));
+  STATE.campagnes = await Promise.all(campSnap.docs.map(async (doc) => {
+    const data = {id:doc.id, ...doc.data()};
+    // Compter vins et commandes
+    const vinsSnap = await getDocs(collection(window.GFA.db, 'campagnes', doc.id, 'vins'));
+    const cmdsSnap = await getDocs(collection(window.GFA.db, 'campagnes', doc.id, 'commandes'));
+    data.nb_vins = vinsSnap.size;
+    data.nb_commandes = cmdsSnap.size;
+    return data;
+  }));
+  STATE.campagnes.sort((a,b)=>(b.annee||0)-(a.annee||0));
+  
   render();
 }
 
@@ -553,6 +573,8 @@ function render(){
     } else {
       mc.appendChild(renderAdmin());
     }
+  } else if(STATE.activeTab==='campagnes'){
+    mc.appendChild(renderCampagnes());
   } else {
     mc.appendChild(renderAllAssocies());
   }
@@ -566,9 +588,10 @@ function renderAdmin(){
   const card=el('div',{class:'card'});
   const hdr=el('div',{class:'card-header'});
   hdr.appendChild(html('h2','Groupements Actifs','card-title'));
-  const btnNew=el('button',{class:'btn btn-gold',onClick:()=>openModalGroupement()},
-    '+ Nouveau Groupement');
-  hdr.appendChild(btnNew);
+  const btnWrap=el('div',{style:'display:flex;gap:.8rem'});
+  btnWrap.appendChild(el('button',{class:'btn btn-primary',onClick:()=>openModalNouvelleCampagne()},'+ Nouvelle Campagne'));
+  btnWrap.appendChild(el('button',{class:'btn btn-gold',onClick:()=>openModalGroupement()},'+ Nouveau Groupement'));
+  hdr.appendChild(btnWrap);
   card.appendChild(hdr);
 
   const list=el('div',{class:'glist'});
@@ -618,8 +641,6 @@ function renderGroupementRow(g){
   const actions=el('div',{class:'gcell gcell--actions'});
   actions.appendChild(el('button',{class:'btn btn-primary btn-sm',
     onClick:()=>{ STATE.ficheId=g.id; render(); }},'Voir Détails'));
-  actions.appendChild(el('button',{class:'btn btn-success btn-sm',
-    onClick:()=>openModalNouvelleCampagne(g)},'Nouvelle Campagne'));
   row.appendChild(actions);
   return row;
 }
@@ -1057,9 +1078,242 @@ function openModalAssocie(g, a=null){
 }
 
 // ════════════════════════════════════════════════════════════════
-//  MODAL — NOUVELLE CAMPAGNE avec catalogue standard + prix
+//  VUE CAMPAGNES
 // ════════════════════════════════════════════════════════════════
-function openModalNouvelleCampagne(g) {
+function renderCampagnes(){
+  const wrap=el('div');
+  const card=el('div',{class:'card'});
+  const hdr=el('div',{class:'card-header'});
+  hdr.appendChild(html('h2','Campagnes','card-title'));
+  hdr.appendChild(el('button',{class:'btn btn-gold',onClick:()=>openModalNouvelleCampagne()},'+ Nouvelle Campagne'));
+  card.appendChild(hdr);
+
+  if(!STATE.campagnes||!STATE.campagnes.length){
+    card.appendChild(html('p','Aucune campagne. Cliquez sur "+ Nouvelle Campagne" pour en créer une.','empty'));
+  } else {
+    const list=el('div',{style:'display:flex;flex-direction:column;gap:1rem;margin-top:1.5rem'});
+    STATE.campagnes.forEach(c=>{
+      const ccard=el('div',{style:'border:1px solid rgba(107,30,60,.12);border-radius:4px;overflow:hidden'});
+      const chead=el('div',{style:'display:flex;justify-content:space-between;align-items:center;padding:1.2rem 1.5rem;background:linear-gradient(135deg,rgba(107,30,60,.04),rgba(201,169,97,.04))'});
+      const cleft=el('div');
+      cleft.appendChild(html('div',`Campagne ${c.annee} — ${esc(c.vigneron)}`,'val',{style:'font-family:"Playfair Display",serif;font-size:1.3rem;font-weight:700;color:var(--burg)'}));
+      cleft.appendChild(html('div',c.date_fin?`Clôture : ${c.date_fin}`:'','',{style:'font-size:.85rem;color:#888;margin-top:.2rem'}));
+      chead.appendChild(cleft);
+      const cright=el('div',{style:'display:flex;align-items:center;gap:.8rem'});
+      cright.appendChild(html('span',c.actif?'Active':'Clôturée',`badge ${c.actif?'badge-success':'badge-warning'}`));
+      cright.appendChild(el('button',{class:'btn btn-primary btn-sm',onClick:()=>{ STATE.campagneId=c.id; STATE.activeTab='campagnes'; render(); }},'Détails'));
+      chead.appendChild(cright);
+      ccard.appendChild(chead);
+      
+      const cbody=el('div',{style:'padding:1rem 1.5rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem'});
+      cbody.appendChild(html('div',`<div class="lbl">Vins au catalogue</div><div class="val">${c.nb_vins||0}</div>`,'info-item'));
+      cbody.appendChild(html('div',`<div class="lbl">Commandes reçues</div><div class="val">${c.nb_commandes||0}</div>`,'info-item'));
+      cbody.appendChild(html('div',`<div class="lbl">Prix référence</div><div class="val">${c.prix_bouteille_reference||'—'} €</div>`,'info-item'));
+      ccard.appendChild(cbody);
+      list.appendChild(ccard);
+    });
+    card.appendChild(list);
+  }
+  wrap.appendChild(card);
+  return wrap;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  MODAL — NOUVELLE CAMPAGNE (sélection vigneron, agrégation groupements)
+// ════════════════════════════════════════════════════════════════
+function openModalNouvelleCampagne() {
+  const box = el('div', {class:'mbox'});
+  const anneeActuelle = new Date().getFullYear();
+  
+  // Liste unique des vignerons depuis tous les groupements
+  const vignerons = [...new Set(STATE.groupements.map(g=>g.vigneron).filter(Boolean))].sort();
+  
+  if(!vignerons.length){
+    toast('Créez d'abord un groupement avant de créer une campagne.',true);
+    return;
+  }
+
+  box.innerHTML = `
+    <div class="mhead">
+      <span class="mtitle">Nouvelle Campagne</span>
+      <button class="mclose">✕</button>
+    </div>
+    <div class="mbody">
+      <div class="form2">
+        <div class="fg"><label class="flbl">Année *</label>
+          <input class="finput" id="nc-annee" type="number" value="${anneeActuelle}" required></div>
+        <div class="fg"><label class="flbl">Date de clôture</label>
+          <input class="finput" id="nc-fin" placeholder="ex. 15 mars ${anneeActuelle}"></div>
+      </div>
+      
+      <div class="fg"><label class="flbl">Vigneron *</label>
+        <select class="finput" id="nc-vigneron" required>
+          <option value="">-- Sélectionnez un vigneron --</option>
+          ${vignerons.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('')}
+        </select>
+      </div>
+      
+      <div class="fg"><label class="flbl">Prix de référence par bouteille (€)</label>
+        <input class="finput" id="nc-prix-ref" type="number" step="0.01" placeholder="ex. 12.50"></div>
+      
+      <div id="nc-catalogue-zone" style="display:none;margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid rgba(107,30,60,.1)">
+        <div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:700;color:var(--burg);margin-bottom:.5rem">
+          Catalogue des vins
+        </div>
+        <div id="nc-groupements-info" style="font-size:.88rem;color:#777;margin-bottom:1rem"></div>
+        <div id="nc-vins-list" style="display:grid;gap:.8rem;max-height:300px;overflow-y:auto;padding-right:.5rem"></div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-secondary" id="nc-cancel">Annuler</button>
+      <button class="btn btn-gold" id="nc-create" disabled>Créer la campagne</button>
+    </div>`;
+
+  box.querySelector('.mclose').onclick = closeModal;
+  box.querySelector('#nc-cancel').onclick = closeModal;
+
+  // Changement de vigneron → afficher les groupements + catalogue
+  box.querySelector('#nc-vigneron').addEventListener('change', (e) => {
+    const vigneron = e.target.value;
+    const catalogueZone = box.querySelector('#nc-catalogue-zone');
+    const createBtn = box.querySelector('#nc-create');
+    
+    if(!vigneron){
+      catalogueZone.style.display='none';
+      createBtn.disabled=true;
+      return;
+    }
+
+    // Filtrer les groupements de ce vigneron
+    const groupementsVigneron = STATE.groupements.filter(g=>g.vigneron===vigneron);
+    
+    // Agréger tous les catalogues standards
+    const toutesAppellations = [];
+    groupementsVigneron.forEach(g=>{
+      (g.catalogue_std||[]).forEach(app=>{
+        if(!toutesAppellations.find(a=>a.nom===app)){
+          toutesAppellations.push({nom:app, groupement_id:g.id, groupement_nom:g.nom});
+        }
+      });
+    });
+
+    // Afficher infos groupements
+    const infoDiv = box.querySelector('#nc-groupements-info');
+    infoDiv.textContent = `${groupementsVigneron.length} groupement(s) : ${groupementsVigneron.map(g=>g.nom).join(', ')}`;
+
+    // Afficher liste vins
+    const vinsDiv = box.querySelector('#nc-vins-list');
+    if(!toutesAppellations.length){
+      vinsDiv.innerHTML='<p style="color:#aaa;font-style:italic;font-size:.9rem">Aucune appellation dans les catalogues de ce vigneron.</p>';
+    } else {
+      vinsDiv.innerHTML = toutesAppellations.map(app=>`
+        <div style="display:flex;align-items:center;gap:.8rem;padding:.7rem;background:rgba(248,245,239,.6);border-radius:2px">
+          <div style="flex:1.5">
+            <div style="font-weight:600;color:var(--dark)">${esc(app.nom)}</div>
+            <div style="font-size:.8rem;color:#999">${esc(app.groupement_nom)}</div>
+          </div>
+          <div style="flex:1;display:flex;align-items:center;gap:.5rem">
+            <input class="finput vin-prix" data-nom="${esc(app.nom)}" data-gid="${app.groupement_id}" type="number" step="0.01" 
+              placeholder="Prix €" style="margin:0;flex:1">
+            <input class="finput vin-stock" type="number" placeholder="Stock" 
+              style="margin:0;width:90px" title="Stock limité (laisser vide = illimité)">
+          </div>
+        </div>
+      `).join('');
+    }
+
+    catalogueZone.style.display='block';
+    createBtn.disabled=false;
+  });
+
+  // Bouton créer
+  box.querySelector('#nc-create').onclick = async () => {
+    const annee     = parseInt(box.querySelector('#nc-annee').value) || anneeActuelle;
+    const fin       = box.querySelector('#nc-fin').value.trim();
+    const vigneron  = box.querySelector('#nc-vigneron').value;
+    const prixRef   = parseFloat(box.querySelector('#nc-prix-ref').value) || null;
+    const createBtn = box.querySelector('#nc-create');
+    
+    if(!vigneron){
+      toast('Veuillez sélectionner un vigneron.',true);
+      return;
+    }
+
+    // Collecter les vins
+    const vins = [];
+    box.querySelectorAll('.vin-prix').forEach(inp => {
+      const prix = parseFloat(inp.value);
+      const nom  = inp.dataset.nom;
+      const gid  = inp.dataset.gid;
+      const stock= inp.nextElementSibling?.value ? parseInt(inp.nextElementSibling.value) : null;
+      if (prix && prix > 0) {
+        vins.push({ nom, prix, stock, groupement_id:gid, description: '' });
+      }
+    });
+
+    if (vins.length === 0) {
+      toast('Veuillez indiquer au moins un prix pour créer la campagne.', true);
+      return;
+    }
+
+    createBtn.textContent = 'Création en cours…';
+    createBtn.disabled = true;
+
+    try {
+      const { db } = window.GFA;
+      const { collection, doc, setDoc, addDoc, getDocs, updateDoc, query, where } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+
+      // Créer la campagne à la racine
+      const campagneRef = doc(collection(db, 'campagnes'));
+      await setDoc(campagneRef, {
+        annee,
+        vigneron,
+        actif: true,
+        date_fin: fin,
+        prix_bouteille_reference: prixRef,
+        cree_le: new Date().toISOString()
+      });
+
+      // Désactiver les autres campagnes de ce vigneron
+      const autresCampagnes = await getDocs(
+        query(collection(db, 'campagnes'), where('vigneron', '==', vigneron), where('actif', '==', true))
+      );
+      for (const campDoc of autresCampagnes.docs) {
+        if (campDoc.id !== campagneRef.id) {
+          await updateDoc(doc(db, 'campagnes', campDoc.id), { actif: false });
+        }
+      }
+
+      // Créer les vins
+      for (const vin of vins) {
+        await addDoc(collection(db, 'campagnes', campagneRef.id, 'vins'), {
+          nom: vin.nom,
+          prix: vin.prix,
+          stock: vin.stock,
+          groupement_id: vin.groupement_id,
+          description: vin.description
+        });
+      }
+
+      closeModal();
+      toast(`Campagne ${annee} créée avec ${vins.length} vin${vins.length>1?'s':''}.`);
+      setTimeout(() => location.reload(), 1500);
+
+    } catch(err) {
+      console.error(err);
+      toast('Erreur lors de la création. Vérifiez la console.', true);
+      createBtn.textContent = 'Créer la campagne';
+      createBtn.disabled = false;
+    }
+  };
+
+  openModal(box);
+}
+
+// ════════════════════════════════════════════════════════════════
+//  MODAL — ANCIENNE VERSION (sera supprimée)
+// ════════════════════════════════════════════════════════════════
+function openModalNouvelleCampagne_OLD(g) {
   const box = el('div', {class:'mbox'});
   const anneeActuelle = new Date().getFullYear();
   const associesActifs = (g.associes||[]).filter(a=>a.actif&&a.email&&a.token);
