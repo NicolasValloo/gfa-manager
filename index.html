@@ -1180,7 +1180,7 @@ function openModalNouvelleCampagne() {
   const vignerons = [...new Set(STATE.groupements.map(g=>g.vigneron).filter(Boolean))].sort();
   
   if(!vignerons.length){
-    toast('Créez d'abord un groupement avant de créer une campagne.',true);
+    toast('Créez d\'abord un groupement avant de créer une campagne.',true);
     return;
   }
 
