@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GFA Manager — Espace Associé</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Cormorant+Garamond:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<script type="module">
+import { initializeApp }        from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, query, where, getDocs, doc, setDoc, addDoc, updateDoc }
+                                from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ══ MÊME CONFIG QUE index.html ══
+const firebaseConfig = {
+  apiKey: "AIzaSyB6MW35DPPsh59DoOEPVXml6FIvDNFgdI0",
+  authDomain: "gfa-manager-50a7f.firebaseapp.com",
+  projectId: "gfa-manager-50a7f",
+  storageBucket: "gfa-manager-50a7f.firebasestorage.app",
+  messagingSenderId: "224596157977",
+  appId: "1:224596157977:web:c8d09907b8185010076c88"
+};
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+
+// ── Résolution du token depuis l'URL ──────────────────────────
+const params = new URLSearchParams(location.search);
+const TOKEN  = params.get('token');
+
+// ── Cherche l'associé dont le token correspond ───────────────
+async function findAssocieByToken(token) {
+  const groupSnap = await getDocs(collection(db, "groupements"));
+  for (const gDoc of groupSnap.docs) {
+    const assocSnap = await getDocs(
+      query(collection(db, "groupements", gDoc.id, "associes"), where("token", "==", token))
+    );
+    if (!assocSnap.empty) {
+      const aDoc = assocSnap.docs[0];
+      return {
+        groupement: { id: gDoc.id, ...gDoc.data() },
+        associe:    { id: aDoc.id, ...aDoc.data() }
+      };
+    }
+  }
+  return null;
+}
+
+// ── Charge les vins de la campagne en cours ──────────────────
+async function getVinsCampagne(groupementId) {
+  const snap = await getDocs(collection(db, "groupements", groupementId, "vins"));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+// ── Charge la commande existante de l'associé ────────────────
+async function getCommandeExistante(groupementId, associeId) {
+  const snap = await getDocs(
+    query(collection(db, "groupements", groupementId, "commandes"), where("associe_id", "==", associeId))
+  );
+  if (!snap.empty) return { id: snap.docs[0].id, ...snap.docs[0].data() };
+  return null;
+}
+
+// ── Sauvegarde la commande ───────────────────────────────────
+async function saveCommande(groupementId, associeId, panier, modeRecup, valider) {
+  const existing = await getCommandeExistante(groupementId, associeId);
+  const data = {
+    associe_id: associeId,
+    panier,
+    mode_recup: modeRecup,
+    validee: valider,
+    date_maj: new Date().toISOString()
+  };
+  if (existing) {
+    await updateDoc(doc(db, "groupements", groupementId, "commandes", existing.id), data);
+  } else {
+    await addDoc(collection(db, "groupements", groupementId, "commandes"), data);
+  }
+}
+
+window.ASSOC_API = { findAssocieByToken, getVinsCampagne, getCommandeExistante, saveCommande };
+window.dispatchEvent(new Event('api:ready'));
+</script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --burg:#6B1E3C;--deep:#4A1228;--gold:#C9A961;
+  --cream:#F8F5EF;--dark:#2C1810;--sage:#8B9A7E;--terra:#C67B5C;
+}
+body{font-family:'Cormorant Garamond',serif;background:var(--cream);color:var(--dark);overflow-x:hidden}
+
+.grain{position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.03;
+  background:url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+/* HEADER */
+.header{background:linear-gradient(135deg,var(--burg),var(--deep));color:var(--cream);
+  padding:3rem 2rem 2.5rem;position:relative;overflow:hidden;text-align:center}
+.header::before{content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(45deg,transparent,transparent 35px,rgba(255,255,255,.03) 35px,rgba(255,255,255,.03) 70px);
+  pointer-events:none}
+.logo{font-family:'Playfair Display',serif;font-size:3rem;font-weight:900;position:relative;z-index:2}
+.logo span{color:var(--gold);font-style:italic}
+.deco-line{width:120px;height:2px;background:var(--gold);margin:1rem auto;position:relative;z-index:2}
+.tagline{font-size:1.1rem;opacity:.85;font-weight:300;position:relative;z-index:2}
+.assoc-name-header{font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:600;
+  color:var(--gold);margin-top:.5rem;position:relative;z-index:2}
+
+/* MAIN */
+.main{max-width:900px;margin:0 auto;padding:3rem 2rem}
+
+/* CARD */
+.card{background:white;border-radius:2px;padding:2.5rem;margin-bottom:2rem;
+  box-shadow:0 2px 4px rgba(107,30,60,.08),0 8px 16px rgba(107,30,60,.06),inset 0 0 0 1px rgba(107,30,60,.1);
+  position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,transparent,rgba(201,169,97,.03));pointer-events:none}
+.card-title{font-family:'Playfair Display',serif;font-size:1.8rem;font-weight:700;
+  color:var(--burg);margin-bottom:1.5rem}
+
+/* INFO GRID */
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.2rem}
+.info-item{padding:1.2rem 1.4rem;
+  background:linear-gradient(135deg,rgba(107,30,60,.03),rgba(201,169,97,.03));
+  border-left:3px solid var(--burg);border-radius:2px}
+.lbl{font-size:.82rem;text-transform:uppercase;letter-spacing:.1em;color:var(--burg);
+  font-weight:600;margin-bottom:.4rem}
+.val{font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--dark);font-weight:600}
+
+/* CRÉDITS BANNER */
+.credits-banner{background:linear-gradient(135deg,var(--burg),var(--deep));color:white;
+  padding:2.5rem;border-radius:2px;text-align:center;margin:2rem 0;position:relative;overflow:hidden;
+  box-shadow:0 8px 32px rgba(107,30,60,.3)}
+.credits-banner::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;
+  background:radial-gradient(circle,rgba(201,169,97,.2) 0%,transparent 70%);
+  animation:rotate 20s linear infinite}
+.credits-amount{font-family:'Playfair Display',serif;font-size:4rem;font-weight:900;
+  color:var(--gold);position:relative;z-index:2;animation:pulse 2s ease-in-out infinite}
+.credits-label{font-size:1.1rem;font-weight:300;letter-spacing:.1em;text-transform:uppercase;
+  margin-top:.5rem;opacity:.9;position:relative;z-index:2}
+.credits-remaining{font-size:1rem;margin-top:.8rem;opacity:.8;position:relative;z-index:2}
+.credits-bar-wrap{max-width:400px;margin:.8rem auto 0;background:rgba(255,255,255,.2);
+  border-radius:4px;height:8px;position:relative;z-index:2}
+.credits-bar{height:8px;background:var(--gold);border-radius:4px;transition:width .4s}
+
+/* VINS GRID */
+.wine-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.5rem;margin:1.5rem 0}
+.wine-card{background:white;border:2px solid transparent;border-radius:2px;padding:1.8rem;
+  transition:all .35s;position:relative;cursor:pointer;box-shadow:0 2px 8px rgba(107,30,60,.08)}
+.wine-card::before{content:'';position:absolute;top:0;left:0;width:4px;height:100%;
+  background:linear-gradient(to bottom,var(--burg),var(--gold));opacity:0;transition:opacity .35s}
+.wine-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 8px 24px rgba(107,30,60,.15)}
+.wine-card:hover::before,.wine-card.selected::before{opacity:1}
+.wine-card.selected{border-color:var(--burg);background:linear-gradient(to bottom,rgba(107,30,60,.03),white)}
+.wine-card.stock-full{opacity:.55;cursor:not-allowed}
+.wine-name{font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:700;
+  color:var(--deep);margin-bottom:.6rem}
+.wine-desc{font-size:.95rem;color:#666;margin-bottom:1rem;line-height:1.5}
+.wine-price{font-family:'Playfair Display',serif;font-size:1.8rem;font-weight:700;color:var(--burg)}
+.wine-price span{font-size:1rem;color:var(--gold);margin-left:.2rem}
+.wine-stock{font-size:.85rem;color:var(--terra);margin-top:.4rem}
+.qty-ctrl{display:flex;align-items:center;justify-content:center;gap:1.2rem;margin-top:1.2rem}
+.qty-btn{width:40px;height:40px;border:2px solid var(--burg);border-radius:50%;background:white;
+  color:var(--burg);font-size:1.3rem;cursor:pointer;transition:all .25s;
+  display:flex;align-items:center;justify-content:center}
+.qty-btn:hover{background:var(--burg);color:white;transform:scale(1.1)}
+.qty-btn:disabled{opacity:.3;cursor:not-allowed;transform:none}
+.qty-num{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:700;
+  color:var(--deep);min-width:50px;text-align:center}
+
+/* RÉCAP */
+.recap{background:linear-gradient(to bottom,rgba(248,245,239,.5),white);
+  border:2px solid var(--gold);border-radius:2px;padding:2rem;margin:2rem 0}
+.recap-title{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:700;
+  color:var(--burg);margin-bottom:1.5rem;text-align:center;text-transform:uppercase;letter-spacing:.05em}
+.recap-row{display:flex;justify-content:space-between;padding:.9rem 0;
+  border-bottom:1px solid rgba(107,30,60,.1);font-size:1rem}
+.recap-row:last-child{border-bottom:none;padding-top:1.5rem;border-top:2px solid var(--gold);
+  font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:700;color:var(--deep)}
+
+/* MODE RECUP */
+.mode-recup{display:flex;gap:1rem;margin:1rem 0}
+.mode-opt{flex:1;padding:1.2rem;border:2px solid rgba(107,30,60,.2);border-radius:2px;
+  text-align:center;cursor:pointer;transition:all .25s;font-family:'Playfair Display',serif;
+  font-size:1rem;font-weight:600}
+.mode-opt:hover{border-color:var(--gold)}
+.mode-opt.active{border-color:var(--burg);background:linear-gradient(135deg,rgba(107,30,60,.05),transparent)}
+
+/* BOUTONS */
+.btn{padding:1.1rem 2.5rem;border:none;border-radius:2px;font-family:'Playfair Display',serif;
+  font-size:1rem;font-weight:600;letter-spacing:.04em;cursor:pointer;transition:all .3s;
+  text-transform:uppercase;position:relative;overflow:hidden}
+.btn-primary{background:linear-gradient(135deg,var(--burg),var(--deep));color:white;
+  box-shadow:0 4px 16px rgba(107,30,60,.3)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(107,30,60,.4)}
+.btn-success{background:linear-gradient(135deg,var(--sage),#6b8a5e);color:white;
+  box-shadow:0 4px 16px rgba(139,154,126,.3)}
+.btn-success:hover{transform:translateY(-2px)}
+.actions{display:flex;gap:1.5rem;justify-content:center;margin:2rem 0;flex-wrap:wrap}
+
+/* ALERT */
+.alert{padding:1.2rem 1.8rem;border-radius:2px;margin:1rem 0;border-left:4px solid;animation:fadeIn .4s}
+.alert-ok{background:rgba(139,154,126,.1);border-color:var(--sage);color:#2d5016}
+.alert-err{background:rgba(198,123,92,.1);border-color:var(--terra);color:#7d3d24}
+
+/* ÉTATS */
+.screen-loading{text-align:center;padding:6rem 2rem}
+.spinner{width:48px;height:48px;border:4px solid rgba(107,30,60,.15);
+  border-top-color:var(--burg);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1.5rem}
+.screen-error{text-align:center;padding:6rem 2rem;max-width:500px;margin:0 auto}
+.screen-error h2{font-family:'Playfair Display',serif;font-size:2rem;color:var(--burg);margin-bottom:1rem}
+.screen-error p{color:#777;line-height:1.6;font-size:1.1rem}
+.commande-validee{background:linear-gradient(135deg,var(--sage),#6b8a5e);color:white;
+  border-radius:2px;padding:2rem;text-align:center;margin:1rem 0}
+.commande-validee h3{font-family:'Playfair Display',serif;font-size:1.6rem;margin-bottom:.5rem}
+
+/* ANIMATIONS */
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes rotate{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+select{width:100%;padding:1rem 1.1rem;border:2px solid rgba(107,30,60,.2);border-radius:2px;
+  font-family:'Cormorant Garamond',serif;font-size:1rem;background:white;color:var(--dark);cursor:pointer}
+select:focus{outline:none;border-color:var(--burg)}
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<header class="header">
+  <div class="logo"><span>GFA</span> Manager</div>
+  <div class="deco-line"></div>
+  <div class="tagline">Votre Espace de Commande</div>
+  <div class="assoc-name-header" id="assoc-name-header"></div>
+</header>
+
+<main class="main" id="main"></main>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  ÉTAT
+// ════════════════════════════════════════════════════════
+let ASSOC    = null;
+let GROUPT   = null;
+let VINS     = [];
+let PANIER   = {};   // { vinId: qty }
+let MODE     = 'bernard';
+let COMMANDE = null; // commande existante
+
+// ════════════════════════════════════════════════════════
+//  INIT — attend que Firebase soit prêt
+// ════════════════════════════════════════════════════════
+window.addEventListener('api:ready', init);
+
+async function init() {
+  const main = document.getElementById('main');
+
+  if (!TOKEN) {
+    return showError('Lien invalide', 'Aucun token d\'accès trouvé dans l\'URL. Vérifiez que vous avez utilisé le bon lien.');
+  }
+
+  main.innerHTML = `<div class="screen-loading"><div class="spinner"></div><p style="font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--burg)">Chargement de votre espace…</p></div>`;
+
+  try {
+    const result = await window.ASSOC_API.findAssocieByToken(TOKEN);
+    if (!result) {
+      return showError('Accès refusé', 'Ce lien n\'est pas reconnu ou a été désactivé. Contactez votre administrateur.');
+    }
+
+    ASSOC  = result.associe;
+    GROUPT = result.groupement;
+
+    if (!ASSOC.actif) {
+      return showError('Accès désactivé', 'Votre accès à cet espace a été désactivé. Contactez votre administrateur.');
+    }
+
+    document.getElementById('assoc-name-header').textContent =
+      ASSOC.prenom + ' ' + ASSOC.nom;
+
+    VINS     = await window.ASSOC_API.getVinsCampagne(GROUPT.id);
+    COMMANDE = await window.ASSOC_API.getCommandeExistante(GROUPT.id, ASSOC.id);
+
+    if (COMMANDE) {
+      PANIER = COMMANDE.panier || {};
+      MODE   = COMMANDE.mode_recup || 'bernard';
+    }
+
+    if (COMMANDE?.validee) {
+      renderCommandeValidee();
+    } else {
+      render();
+    }
+
+  } catch(err) {
+    console.error(err);
+    showError('Erreur de chargement', 'Impossible de charger vos données. Veuillez réessayer dans quelques instants.');
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  CALCULS
+// ════════════════════════════════════════════════════════
+function calcCreditsTotal() {
+  const ppb = GROUPT.parts_pour_bouteille || 1;
+  const prixRef = GROUPT.prix_bouteille_reference || 0;
+  return (ASSOC.parts / ppb) * prixRef;
+}
+
+function calcCreditsUtilises() {
+  return Object.entries(PANIER).reduce((t, [id, qty]) => {
+    const v = VINS.find(x => x.id === id);
+    return t + (v ? v.prix * qty : 0);
+  }, 0);
+}
+
+function changeQty(vinId, delta) {
+  const vin    = VINS.find(v => v.id === vinId);
+  const actuel = PANIER[vinId] || 0;
+  const newQty = Math.max(0, actuel + delta);
+  const utilises = calcCreditsUtilises();
+  const total    = calcCreditsTotal();
+
+  if (delta > 0 && utilises + vin.prix > total + 0.001) {
+    showAlert('Crédits insuffisants pour ajouter cette bouteille.', false);
+    return;
+  }
+  if (delta > 0 && vin.stock && newQty > vin.stock) {
+    showAlert('Stock limité atteint pour ce vin.', false);
+    return;
+  }
+
+  if (newQty === 0) delete PANIER[vinId];
+  else PANIER[vinId] = newQty;
+
+  render();
+}
+
+// ════════════════════════════════════════════════════════
+//  RENDU PRINCIPAL
+// ════════════════════════════════════════════════════════
+function render() {
+  const main    = document.getElementById('main');
+  const total   = calcCreditsTotal();
+  const utilises = calcCreditsUtilises();
+  const restant = total - utilises;
+  const pct     = total > 0 ? Math.min(100, (utilises / total) * 100) : 0;
+
+  let html = '';
+
+  // ── Infos associé ──
+  html += `<div class="card">
+    <div class="card-title">Vos Informations</div>
+    <div class="info-grid">
+      <div class="info-item"><div class="lbl">Nom</div><div class="val">${esc(ASSOC.prenom)} ${esc(ASSOC.nom)}</div></div>
+      <div class="info-item"><div class="lbl">Groupement</div><div class="val">${esc(GROUPT.nom)}</div></div>
+      <div class="info-item"><div class="lbl">Vigneron</div><div class="val">${esc(GROUPT.vigneron||'')}</div></div>
+      <div class="info-item"><div class="lbl">Vos parts</div><div class="val">${ASSOC.parts}</div></div>
+      <div class="info-item"><div class="lbl">Appellation</div><div class="val">${esc(GROUPT.appellation||'')}</div></div>
+    </div>
+  </div>`;
+
+  // ── Bannière crédits ──
+  html += `<div class="credits-banner">
+    <div class="credits-amount">${fmt(total)}&nbsp;€</div>
+    <div class="credits-label">Crédits disponibles</div>
+    <div class="credits-remaining">Restants : <strong>${fmt(restant)} €</strong> · Utilisés : <strong>${fmt(utilises)} €</strong></div>
+    <div class="credits-bar-wrap"><div class="credits-bar" style="width:${pct}%"></div></div>
+  </div>`;
+
+  // ── Alerte ──
+  html += `<div id="alert-zone"></div>`;
+
+  // ── Catalogue ──
+  if (VINS.length === 0) {
+    html += `<div class="card" style="text-align:center;color:#aaa;font-style:italic">Aucun vin au catalogue pour cette campagne.</div>`;
+  } else {
+    html += `<div class="card"><div class="card-title">Catalogue des Vins</div><div class="wine-grid">`;
+    VINS.forEach(vin => {
+      const qty = PANIER[vin.id] || 0;
+      const stockFull = vin.stock && qty >= vin.stock;
+      const selected  = qty > 0;
+      html += `<div class="wine-card ${selected?'selected':''} ${stockFull?'stock-full':''}">
+        <div class="wine-name">${esc(vin.nom)}</div>
+        <div class="wine-desc">${esc(vin.description||'')}</div>
+        <div class="wine-price">${fmt(vin.prix)}<span>€</span></div>
+        ${vin.stock?`<div class="wine-stock">Stock limité : ${vin.stock} bouteilles</div>`:''}
+        <div class="qty-ctrl">
+          <button class="qty-btn" onclick="changeQty('${vin.id}',-1)" ${qty===0?'disabled':''}>−</button>
+          <div class="qty-num">${qty}</div>
+          <button class="qty-btn" onclick="changeQty('${vin.id}',1)" ${stockFull?'disabled':''}>+</button>
+        </div>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // ── Récapitulatif ──
+  const lignes = Object.entries(PANIER).filter(([,q])=>q>0);
+  if (lignes.length > 0) {
+    html += `<div class="recap">
+      <div class="recap-title">Récapitulatif</div>`;
+    lignes.forEach(([id, qty]) => {
+      const v = VINS.find(x => x.id === id);
+      if (v) html += `<div class="recap-row"><span>${esc(v.nom)} × ${qty}</span><span>${fmt(v.prix * qty)} €</span></div>`;
+    });
+    html += `<div class="recap-row"><span>Total</span><span>${fmt(utilises)} € / ${fmt(total)} €</span></div>
+    </div>`;
+  }
+
+  // ── Mode récupération ──
+  html += `<div class="card">
+    <div class="card-title" style="margin-bottom:1rem">Mode de récupération</div>
+    <div class="mode-recup">
+      <div class="mode-opt ${MODE==='bernard'?'active':''}" onclick="setMode('bernard')">🏠 Bernard</div>
+      <div class="mode-opt ${MODE==='vigneron'?'active':''}" onclick="setMode('vigneron')">🍷 Vigneron</div>
+    </div>
+  </div>`;
+
+  // ── Actions ──
+  html += `<div class="actions">
+    <button class="btn btn-primary" onclick="sauvegarder(false)">💾 Sauvegarder en brouillon</button>
+    <button class="btn btn-success" onclick="sauvegarder(true)">✓ Valider ma commande</button>
+  </div>`;
+
+  main.innerHTML = html;
+}
+
+// ── Vue commande déjà validée ────────────────────────────────
+function renderCommandeValidee() {
+  const total    = calcCreditsTotal();
+  const utilises = calcCreditsUtilises();
+  const main     = document.getElementById('main');
+
+  let html = `<div class="card">
+    <div class="card-title">Vos Informations</div>
+    <div class="info-grid">
+      <div class="info-item"><div class="lbl">Nom</div><div class="val">${esc(ASSOC.prenom)} ${esc(ASSOC.nom)}</div></div>
+      <div class="info-item"><div class="lbl">Groupement</div><div class="val">${esc(GROUPT.nom)}</div></div>
+      <div class="info-item"><div class="lbl">Vigneron</div><div class="val">${esc(GROUPT.vigneron||'')}</div></div>
+    </div>
+  </div>
+  <div class="commande-validee">
+    <h3>✓ Commande validée</h3>
+    <p>Votre commande a été enregistrée. Vous pouvez revenir sur cette page pour la consulter.</p>
+  </div>`;
+
+  const lignes = Object.entries(PANIER).filter(([,q])=>q>0);
+  if (lignes.length > 0) {
+    html += `<div class="recap">
+      <div class="recap-title">Votre commande</div>`;
+    lignes.forEach(([id, qty]) => {
+      const v = VINS.find(x => x.id === id);
+      if (v) html += `<div class="recap-row"><span>${esc(v.nom)} × ${qty}</span><span>${fmt(v.prix * qty)} €</span></div>`;
+    });
+    html += `<div class="recap-row"><span>Total</span><span>${fmt(utilises)} € / ${fmt(total)} €</span></div>
+    </div>`;
+  }
+
+  html += `<div class="actions">
+    <button class="btn btn-primary" onclick="reouvrirCommande()">Modifier ma commande</button>
+  </div>`;
+
+  main.innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════
+//  ACTIONS (appelées depuis le HTML inline)
+// ════════════════════════════════════════════════════════
+window.changeQty = changeQty;
+
+window.setMode = function(mode) {
+  MODE = mode;
+  render();
+};
+
+window.sauvegarder = async function(valider) {
+  if (valider && Object.keys(PANIER).length === 0) {
+    showAlert('Veuillez sélectionner au moins une bouteille avant de valider.', false);
+    return;
+  }
+  try {
+    await window.ASSOC_API.saveCommande(GROUPT.id, ASSOC.id, PANIER, MODE, valider);
+    if (valider) {
+      COMMANDE = { validee: true, panier: PANIER, mode_recup: MODE };
+      renderCommandeValidee();
+    } else {
+      showAlert('Brouillon sauvegardé avec succès.', true);
+    }
+  } catch(err) {
+    console.error(err);
+    showAlert('Erreur lors de la sauvegarde. Réessayez.', false);
+  }
+};
+
+window.reouvrirCommande = async function() {
+  try {
+    await window.ASSOC_API.saveCommande(GROUPT.id, ASSOC.id, PANIER, MODE, false);
+    COMMANDE = { ...COMMANDE, validee: false };
+    render();
+  } catch(err) {
+    showAlert('Erreur. Réessayez.', false);
+  }
+};
+
+// ════════════════════════════════════════════════════════
+//  HELPERS UI
+// ════════════════════════════════════════════════════════
+function showError(titre, msg) {
+  document.getElementById('main').innerHTML = `
+    <div class="screen-error">
+      <h2>${titre}</h2>
+      <p>${msg}</p>
+    </div>`;
+}
+
+function showAlert(msg, ok) {
+  const z = document.getElementById('alert-zone');
+  if (!z) return;
+  z.innerHTML = `<div class="alert ${ok?'alert-ok':'alert-err'}">${msg}</div>`;
+  setTimeout(() => { if(z) z.innerHTML=''; }, 4000);
+}
+
+function fmt(n) { return Number(n||0).toFixed(2); }
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

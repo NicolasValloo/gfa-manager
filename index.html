@@ -1,2010 +1,999 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GFA Manager - Démo Interactive</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Cormorant+Garamond:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        :root {
-            --wine-burgundy: #6B1E3C;
-            --wine-deep: #4A1228;
-            --gold: #C9A961;
-            --cream: #F8F5EF;
-            --dark: #2C1810;
-            --sage: #8B9A7E;
-            --terracotta: #C67B5C;
-        }
-
-        body {
-            font-family: 'Cormorant Garamond', serif;
-            background: var(--cream);
-            color: var(--dark);
-            overflow-x: hidden;
-        }
-
-        .grain-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 1000;
-            opacity: 0.03;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-        }
-
-        #root {
-            position: relative;
-            z-index: 1;
-        }
-
-        .app-container {
-            min-height: 100vh;
-        }
-
-        /* Header avec motif décoratif */
-        .header {
-            background: linear-gradient(135deg, var(--wine-burgundy) 0%, var(--wine-deep) 100%);
-            color: var(--cream);
-            padding: 4rem 2rem 3rem;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-image: 
-                repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255,255,255,0.03) 35px, rgba(255,255,255,0.03) 70px),
-                repeating-linear-gradient(-45deg, transparent, transparent 35px, rgba(255,255,255,0.03) 35px, rgba(255,255,255,0.03) 70px);
-            pointer-events: none;
-        }
-
-        .header-content {
-            max-width: 1400px;
-            margin: 0 auto;
-            position: relative;
-            z-index: 2;
-        }
-
-        .logo {
-            font-family: 'Playfair Display', serif;
-            font-size: 4.5rem;
-            font-weight: 900;
-            letter-spacing: -0.02em;
-            margin-bottom: 0.5rem;
-            text-shadow: 2px 2px 0 rgba(0,0,0,0.3);
-            animation: fadeInDown 0.8s ease-out;
-        }
-
-        .logo-accent {
-            color: var(--gold);
-            font-style: italic;
-        }
-
-        .tagline {
-            font-size: 1.5rem;
-            font-weight: 300;
-            opacity: 0.9;
-            letter-spacing: 0.05em;
-            animation: fadeIn 1s ease-out 0.3s backwards;
-        }
-
-        .decorative-line {
-            width: 200px;
-            height: 2px;
-            background: var(--gold);
-            margin: 1.5rem 0;
-            position: relative;
-            animation: expandWidth 0.8s ease-out 0.5s backwards;
-        }
-
-        .decorative-line::before,
-        .decorative-line::after {
-            content: '';
-            position: absolute;
-            width: 8px;
-            height: 8px;
-            background: var(--gold);
-            border-radius: 50%;
-            top: -3px;
-        }
-
-        .decorative-line::before {
-            left: -12px;
-        }
-
-        .decorative-line::after {
-            right: -12px;
-        }
-
-        /* Navigation élégante */
-        .nav-container {
-            background: white;
-            box-shadow: 0 4px 20px rgba(107, 30, 60, 0.1);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .nav {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: center;
-            gap: 0;
-        }
-
-        .nav-btn {
-            flex: 1;
-            max-width: 300px;
-            padding: 1.5rem 2rem;
-            border: none;
-            background: transparent;
-            font-family: 'Playfair Display', serif;
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--wine-burgundy);
-            cursor: pointer;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            border-bottom: 3px solid transparent;
-        }
-
-        .nav-btn::before {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 50%;
-            width: 0;
-            height: 3px;
-            background: var(--gold);
-            transform: translateX(-50%);
-            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .nav-btn:hover::before {
-            width: 100%;
-        }
-
-        .nav-btn.active {
-            color: var(--wine-deep);
-            background: linear-gradient(to bottom, rgba(201, 169, 97, 0.1), transparent);
-        }
-
-        .nav-btn.active::before {
-            width: 100%;
-        }
-
-        /* Contenu principal */
-        .main-content {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 3rem 2rem;
-            animation: fadeIn 0.6s ease-out;
-        }
-
-        /* Cards avec effet papier vintage */
-        .card {
-            background: white;
-            border-radius: 2px;
-            padding: 2.5rem;
-            margin-bottom: 2rem;
-            box-shadow: 
-                0 2px 4px rgba(107, 30, 60, 0.08),
-                0 8px 16px rgba(107, 30, 60, 0.06),
-                inset 0 0 0 1px rgba(107, 30, 60, 0.1);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, transparent 0%, rgba(201, 169, 97, 0.03) 100%);
-            pointer-events: none;
-        }
-
-        .card:hover {
-            transform: translateY(-4px);
-            box-shadow: 
-                0 4px 8px rgba(107, 30, 60, 0.12),
-                0 16px 32px rgba(107, 30, 60, 0.08),
-                inset 0 0 0 1px rgba(107, 30, 60, 0.15);
-        }
-
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: start;
-            margin-bottom: 2rem;
-            padding-bottom: 1.5rem;
-            border-bottom: 1px solid rgba(107, 30, 60, 0.1);
-        }
-
-        .card-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--wine-burgundy);
-            letter-spacing: -0.01em;
-        }
-
-        .badge {
-            padding: 0.5rem 1.2rem;
-            border-radius: 2px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-        }
-
-        .badge-success {
-            background: linear-gradient(135deg, var(--sage), #6b8a5e);
-            color: white;
-        }
-
-        .badge-warning {
-            background: linear-gradient(135deg, var(--terracotta), #b56a4e);
-            color: white;
-        }
-
-        .badge-gold {
-            background: linear-gradient(135deg, var(--gold), #b89451);
-            color: var(--wine-deep);
-        }
-
-        /* Grille de vins sophistiquée */
-        .wine-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 2rem;
-            margin: 2rem 0;
-        }
-
-        .wine-card {
-            background: white;
-            border: 2px solid transparent;
-            border-radius: 2px;
-            padding: 2rem;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            cursor: pointer;
-            box-shadow: 0 2px 8px rgba(107, 30, 60, 0.08);
-        }
-
-        .wine-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 4px;
-            height: 100%;
-            background: linear-gradient(to bottom, var(--wine-burgundy), var(--gold));
-            opacity: 0;
-            transition: opacity 0.4s;
-        }
-
-        .wine-card:hover {
-            border-color: var(--gold);
-            transform: translateY(-2px) scale(1.02);
-            box-shadow: 0 8px 24px rgba(107, 30, 60, 0.15);
-        }
-
-        .wine-card:hover::before {
-            opacity: 1;
-        }
-
-        .wine-card.selected {
-            border-color: var(--wine-burgundy);
-            background: linear-gradient(to bottom, rgba(107, 30, 60, 0.03), white);
-        }
-
-        .wine-card.selected::before {
-            opacity: 1;
-        }
-
-        .wine-name {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--wine-deep);
-            margin-bottom: 0.8rem;
-            letter-spacing: -0.01em;
-        }
-
-        .wine-description {
-            font-size: 1rem;
-            color: #666;
-            margin-bottom: 1.5rem;
-            line-height: 1.6;
-            font-weight: 400;
-        }
-
-        .wine-price {
-            font-family: 'Playfair Display', serif;
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--wine-burgundy);
-            margin: 1rem 0;
-        }
-
-        .wine-price-currency {
-            font-size: 1.2rem;
-            color: var(--gold);
-            margin-left: 0.3rem;
-        }
-
-        /* Contrôles de quantité raffinés */
-        .quantity-control {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 1.5rem;
-            margin-top: 1.5rem;
-        }
-
-        .quantity-btn {
-            width: 45px;
-            height: 45px;
-            border: 2px solid var(--wine-burgundy);
-            border-radius: 50%;
-            background: white;
-            color: var(--wine-burgundy);
-            font-size: 1.5rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .quantity-btn:hover {
-            background: var(--wine-burgundy);
-            color: white;
-            transform: scale(1.1);
-        }
-
-        .quantity-btn:active {
-            transform: scale(0.95);
-        }
-
-        .quantity-display {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: var(--wine-deep);
-            min-width: 60px;
-            text-align: center;
-        }
-
-        /* Affichage des crédits prestigieux */
-        .credits-banner {
-            background: linear-gradient(135deg, var(--wine-burgundy) 0%, var(--wine-deep) 100%);
-            color: white;
-            padding: 3rem;
-            border-radius: 2px;
-            text-align: center;
-            margin: 2rem 0;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 8px 32px rgba(107, 30, 60, 0.3);
-        }
-
-        .credits-banner::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(201, 169, 97, 0.2) 0%, transparent 70%);
-            animation: rotate 20s linear infinite;
-        }
-
-        .credits-amount {
-            font-family: 'Playfair Display', serif;
-            font-size: 4.5rem;
-            font-weight: 900;
-            color: var(--gold);
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-            position: relative;
-            z-index: 2;
-            animation: pulse 2s ease-in-out infinite;
-        }
-
-        .credits-label {
-            font-size: 1.3rem;
-            font-weight: 300;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            margin-top: 0.5rem;
-            opacity: 0.9;
-            position: relative;
-            z-index: 2;
-        }
-
-        .credits-remaining {
-            font-size: 1.1rem;
-            margin-top: 1rem;
-            opacity: 0.8;
-            position: relative;
-            z-index: 2;
-        }
-
-        /* Boutons premium */
-        .btn {
-            padding: 1.2rem 3rem;
-            border: none;
-            border-radius: 2px;
-            font-family: 'Playfair Display', serif;
-            font-size: 1.1rem;
-            font-weight: 600;
-            letter-spacing: 0.05em;
-            cursor: pointer;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            text-transform: uppercase;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.2);
-            transform: translate(-50%, -50%);
-            transition: width 0.6s, height 0.6s;
-        }
-
-        .btn:hover::before {
-            width: 300px;
-            height: 300px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--wine-burgundy), var(--wine-deep));
-            color: white;
-            box-shadow: 0 4px 16px rgba(107, 30, 60, 0.3);
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(107, 30, 60, 0.4);
-        }
-
-        .btn-success {
-            background: linear-gradient(135deg, var(--sage), #6b8a5e);
-            color: white;
-            box-shadow: 0 4px 16px rgba(139, 154, 126, 0.3);
-        }
-
-        .btn-gold {
-            background: linear-gradient(135deg, var(--gold), #b89451);
-            color: var(--wine-deep);
-            box-shadow: 0 4px 16px rgba(201, 169, 97, 0.4);
-        }
-
-        /* Récapitulatif élégant */
-        .summary {
-            background: linear-gradient(to bottom, rgba(248, 245, 239, 0.5), white);
-            border: 2px solid var(--gold);
-            border-radius: 2px;
-            padding: 2.5rem;
-            margin: 2rem 0;
-        }
-
-        .summary-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--wine-burgundy);
-            margin-bottom: 2rem;
-            text-align: center;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .summary-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 1.2rem 0;
-            border-bottom: 1px solid rgba(107, 30, 60, 0.1);
-            font-size: 1.1rem;
-        }
-
-        .summary-item:last-child {
-            border-bottom: none;
-            margin-top: 1rem;
-            padding-top: 2rem;
-            border-top: 2px solid var(--gold);
-            font-family: 'Playfair Display', serif;
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--wine-deep);
-        }
-
-        /* Informations personnelles */
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-            margin: 2rem 0;
-        }
-
-        .info-item {
-            padding: 1.5rem;
-            background: linear-gradient(135deg, rgba(107, 30, 60, 0.03), rgba(201, 169, 97, 0.03));
-            border-left: 3px solid var(--wine-burgundy);
-            border-radius: 2px;
-        }
-
-        .info-label {
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: var(--wine-burgundy);
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-
-        .info-value {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.3rem;
-            color: var(--dark);
-            font-weight: 600;
-        }
-
-        /* Animations */
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes fadeInDown {
-            from {
-                opacity: 0;
-                transform: translateY(-30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes expandWidth {
-            from {
-                width: 0;
-            }
-            to {
-                width: 200px;
-            }
-        }
-
-        @keyframes pulse {
-            0%, 100% {
-                transform: scale(1);
-            }
-            50% {
-                transform: scale(1.05);
-            }
-        }
-
-        @keyframes rotate {
-            from {
-                transform: rotate(0deg);
-            }
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* Actions bar */
-        .actions-bar {
-            display: flex;
-            gap: 1.5rem;
-            justify-content: center;
-            margin: 3rem 0;
-            flex-wrap: wrap;
-        }
-
-        /* Alertes */
-        .alert {
-            padding: 1.5rem 2rem;
-            border-radius: 2px;
-            margin: 1.5rem 0;
-            border-left: 4px solid;
-            animation: fadeIn 0.5s;
-        }
-
-        .alert-success {
-            background: linear-gradient(to right, rgba(139, 154, 126, 0.1), rgba(139, 154, 126, 0.05));
-            border-color: var(--sage);
-            color: #2d5016;
-        }
-
-        .alert-warning {
-            background: linear-gradient(to right, rgba(198, 123, 92, 0.1), rgba(198, 123, 92, 0.05));
-            border-color: var(--terracotta);
-            color: #7d3d24;
-        }
-
-        /* Stats cards admin */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 2rem;
-            margin: 2rem 0;
-        }
-
-        .stat-card {
-            background: linear-gradient(135deg, var(--wine-burgundy), var(--wine-deep));
-            color: white;
-            padding: 2.5rem;
-            border-radius: 2px;
-            text-align: center;
-            box-shadow: 0 8px 24px rgba(107, 30, 60, 0.3);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 100px;
-            height: 100px;
-            background: radial-gradient(circle, rgba(201, 169, 97, 0.2) 0%, transparent 70%);
-        }
-
-        .stat-number {
-            font-family: 'Playfair Display', serif;
-            font-size: 3.5rem;
-            font-weight: 900;
-            color: var(--gold);
-            margin-bottom: 0.5rem;
-        }
-
-        .stat-label {
-            font-size: 1rem;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            opacity: 0.9;
-        }
-
-        /* Select élégant */
-        select {
-            width: 100%;
-            padding: 1.2rem;
-            border: 2px solid rgba(107, 30, 60, 0.2);
-            border-radius: 2px;
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 1.1rem;
-            background: white;
-            color: var(--dark);
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        select:focus {
-            outline: none;
-            border-color: var(--wine-burgundy);
-            box-shadow: 0 0 0 3px rgba(107, 30, 60, 0.1);
-        }
-
-        .form-group {
-            margin: 2rem 0;
-        }
-
-        .form-label {
-            display: block;
-            font-family: 'Playfair Display', serif;
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: var(--wine-burgundy);
-            margin-bottom: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .groupements-list {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        /* Ligne groupement horizontale */
-        .groupement-row {
-            display: flex;
-            align-items: center;
-            gap: 0;
-            border: 1px solid rgba(107, 30, 60, 0.12);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .groupement-cell {
-            flex: 1;
-            padding: 1.4rem 1.6rem;
-            border-right: 1px solid rgba(107, 30, 60, 0.1);
-            min-width: 0;
-        }
-
-        .groupement-cell:last-child {
-            border-right: none;
-        }
-
-        .groupement-cell--name {
-            flex: 1.4;
-            background: linear-gradient(135deg, rgba(107, 30, 60, 0.03), transparent);
-        }
-
-        .groupement-cell--parts {
-            flex: 0.9;
-        }
-
-        .groupement-cell--associes {
-            flex: 0.8;
-        }
-
-        .groupement-cell--actions {
-            flex: 0 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 0.6rem;
-            padding: 1.2rem 1.6rem;
-            background: rgba(248, 245, 239, 0.6);
-            align-items: stretch;
-        }
-
-        .btn-row {
-            padding: 0.75rem 1.4rem !important;
-            font-size: 0.85rem !important;
-            white-space: nowrap;
-            text-align: center;
-        }
-
-        /* Identité groupement */
-        .groupement-identity {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1.2rem 0 0.5rem;
-        }
-
-        .groupement-nom-bloc {
-            display: flex;
-            flex-direction: column;
-            gap: 0.3rem;
-        }
-
-        .groupement-nom {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.3rem;
-            font-weight: 700;
-            color: var(--wine-deep);
-            letter-spacing: -0.01em;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .groupement-date {
-            font-size: 0.85rem;
-            color: #999;
-            font-style: italic;
-            letter-spacing: 0.01em;
-            white-space: nowrap;
-        }
-
-        /* Parts avec sous-texte */
-        .parts-value {
-            display: flex;
-            align-items: baseline;
-            gap: 0.4rem;
-            flex-wrap: wrap;
-        }
-
-        .parts-sub {
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 0.85rem;
-            font-weight: 400;
-            color: #999;
-            white-space: nowrap;
-        }
-
-        /* ── MODAL NOUVEAU GROUPEMENT ── */
-        .modal-backdrop {
-            position: fixed; inset: 0;
-            background: rgba(44, 24, 16, 0.55);
-            z-index: 500;
-            display: flex; align-items: center; justify-content: center;
-            padding: 2rem;
-            animation: fadeIn 0.2s;
-        }
-        .modal-box {
-            background: white;
-            border-radius: 4px;
-            width: 100%; max-width: 700px;
-            box-shadow: 0 24px 64px rgba(107,30,60,0.35);
-            overflow: hidden;
-        }
-        .modal-head {
-            background: linear-gradient(135deg, var(--wine-burgundy), var(--wine-deep));
-            color: white;
-            padding: 1.8rem 2rem;
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .modal-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.6rem; font-weight: 700;
-        }
-        .modal-close-btn {
-            background: none; border: none; color: white;
-            font-size: 1.4rem; cursor: pointer; opacity: 0.8;
-            transition: opacity 0.2s;
-        }
-        .modal-close-btn:hover { opacity: 1; }
-        .modal-body { padding: 2rem; }
-        .modal-foot {
-            padding: 1.5rem 2rem;
-            border-top: 1px solid rgba(107,30,60,0.1);
-            display: flex; justify-content: flex-end; gap: 1rem;
-            background: rgba(248,245,239,0.5);
-        }
-        .form-row-2 {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-        .fgroup { display: flex; flex-direction: column; gap: 0.5rem; }
-        .flabel {
-            font-family: 'Playfair Display', serif;
-            font-size: 0.95rem; font-weight: 600;
-            color: var(--wine-burgundy);
-            text-transform: uppercase; letter-spacing: 0.05em;
-        }
-        .finput {
-            padding: 0.9rem 1rem;
-            border: 2px solid rgba(107,30,60,0.2);
-            border-radius: 2px;
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 1.05rem; color: var(--dark);
-            transition: border-color 0.25s;
-        }
-        .finput:focus {
-            outline: none;
-            border-color: var(--wine-burgundy);
-            box-shadow: 0 0 0 3px rgba(107,30,60,0.08);
-        }
-        .btn-secondary {
-            background: #e8e4dc; color: var(--dark);
-            box-shadow: none;
-        }
-        .btn-secondary:hover { background: #ddd8cf; }
-
-        /* ── FICHE GROUPEMENT ── */
-        .fiche-container { animation: fadeIn 0.35s; }
-        .breadcrumb {
-            display: flex; align-items: center; gap: 0.8rem;
-            margin-bottom: 2rem; font-size: 1rem; color: #888;
-        }
-        .breadcrumb-back {
-            background: none; border: none;
-            color: var(--wine-burgundy);
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 1rem; font-weight: 600;
-            cursor: pointer; padding: 0;
-            transition: opacity 0.2s;
-        }
-        .breadcrumb-back:hover { opacity: 0.7; }
-        .breadcrumb-sep { color: #ccc; }
-        .breadcrumb-current { color: var(--dark); font-weight: 600; }
-
-        .fiche-header {
-            display: flex; justify-content: space-between; align-items: flex-start;
-            margin-bottom: 2rem;
-        }
-        .fiche-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 2.8rem; font-weight: 900;
-            color: var(--wine-deep); letter-spacing: -0.02em;
-        }
-        .fiche-subtitle {
-            font-size: 1rem; color: #999; font-style: italic; margin-top: 0.3rem;
-        }
-        .fiche-info-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr));
-            gap: 1.2rem; margin-top: 1.5rem;
-        }
-        .fiche-info-item {
-            padding: 1.2rem 1.4rem;
-            background: linear-gradient(135deg, rgba(107,30,60,0.03), rgba(201,169,97,0.03));
-            border-left: 3px solid var(--wine-burgundy);
-            border-radius: 2px;
-        }
-        .section-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.5rem; font-weight: 700;
-            color: var(--wine-burgundy);
-            margin-bottom: 0.5rem;
-        }
-        .section-header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 1.5rem;
-        }
-        .btn-sm-text {
-            padding: 0.6rem 1.4rem !important;
-            font-size: 0.9rem !important;
-        }
-
-        /* ── TABLEAU ASSOCIÉS ── */
-        .assoc-table-wrap {
-            overflow-x: auto;
-            margin-top: 0.5rem;
-            border: 1px solid rgba(107,30,60,0.1);
-            border-radius: 3px;
-        }
-        .assoc-table {
-            width: 100%; border-collapse: collapse;
-            font-size: 0.95rem;
-        }
-        .assoc-table th {
-            background: linear-gradient(to bottom, var(--wine-burgundy), var(--wine-deep));
-            color: var(--cream);
-            padding: 0.9rem 1.1rem;
-            text-align: left;
-            font-family: 'Playfair Display', serif;
-            font-size: 0.85rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            white-space: nowrap;
-        }
-        .assoc-table td {
-            padding: 0.85rem 1.1rem;
-            border-bottom: 1px solid rgba(107,30,60,0.07);
-            vertical-align: middle;
-        }
-        .assoc-table tr:last-child td { border-bottom: none; }
-        .assoc-table tr:hover td { background: rgba(248,245,239,0.7); }
-        .row-inactive td { opacity: 0.5; }
-        .td-bold { font-weight: 700; color: var(--wine-deep); }
-        .td-center { text-align: center; font-weight: 600; }
-        .td-nowrap { white-space: nowrap; }
-        .td-address { font-size: 0.88rem; color: #666; max-width: 200px; }
-        .td-link { color: var(--wine-burgundy); text-decoration: none; font-size: 0.88rem; }
-        .td-link:hover { text-decoration: underline; }
-        .etat-badge {
-            display: inline-block;
-            padding: 0.3rem 0.9rem;
-            border-radius: 2px;
-            font-size: 0.8rem; font-weight: 700;
-            text-transform: capitalize; letter-spacing: 0.04em;
-        }
-        .etat-bernard  { background: rgba(201,169,97,0.2);  color: #7a5a10; }
-        .etat-vigneron { background: rgba(107,30,60,0.12); color: var(--wine-deep); }
-
-        /* ── COMMENTAIRES ── */
-        .comment-area {
-            width: 100%;
-            padding: 1rem 1.2rem;
-            border: 2px solid rgba(107,30,60,0.15);
-            border-radius: 2px;
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 1.05rem; color: var(--dark);
-            resize: vertical; min-height: 110px;
-            transition: border-color 0.25s;
-            margin-top: 1rem;
-        }
-        .comment-area:focus {
-            outline: none; border-color: var(--wine-burgundy);
-            box-shadow: 0 0 0 3px rgba(107,30,60,0.07);
-        }
-        .save-confirm {
-            color: var(--sage); font-weight: 600; font-size: 1rem;
-            animation: fadeIn 0.3s;
-        }
-
-        /* ── DOCUMENTS ── */
-        .doc-row {
-            display: flex; align-items: center; gap: 1rem;
-            padding: 1rem 0;
-            border-bottom: 1px solid rgba(107,30,60,0.07);
-        }
-        .doc-row:last-child { border-bottom: none; }
-        .doc-icon { font-size: 1.5rem; flex-shrink: 0; }
-        .doc-info { flex: 1; min-width: 0; }
-        .doc-name { font-weight: 600; color: var(--dark); font-size: 1rem; }
-        .doc-date { font-size: 0.85rem; color: #999; margin-top: 0.2rem; }
-        .btn-link {
-            color: var(--wine-burgundy); font-weight: 600;
-            font-size: 0.9rem; text-decoration: none;
-            border: 1px solid rgba(107,30,60,0.25);
-            padding: 0.4rem 0.9rem; border-radius: 2px;
-            white-space: nowrap;
-            transition: all 0.2s;
-        }
-        .btn-link:hover {
-            background: var(--wine-burgundy); color: white;
-        }
-        .empty-msg { color: #aaa; font-style: italic; font-size: 1rem; margin-top: 0.5rem; }
-
-        /* ── CATALOGUES & COMMANDES ── */
-        .two-col-grid {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;
-            margin-bottom: 2rem;
-        }
-        .annees-grid { margin-top: 0.5rem; }
-        .annee-row {
-            display: flex; align-items: flex-start; gap: 1.5rem;
-            padding: 1rem 0;
-            border-bottom: 1px solid rgba(107,30,60,0.07);
-        }
-        .annee-row:last-child { border-bottom: none; }
-        .annee-label {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.3rem; font-weight: 700;
-            color: var(--wine-burgundy);
-            min-width: 50px;
-        }
-        .annee-links { display: flex; flex-direction: column; gap: 0.5rem; }
-        .annee-link {
-            font-size: 0.92rem; font-weight: 600;
-            text-decoration: none; padding: 0.35rem 0.9rem;
-            border-radius: 2px; transition: all 0.2s;
-            display: inline-block;
-        }
-        .annee-link--cat {
-            background: rgba(201,169,97,0.15); color: #7a5a10;
-            border: 1px solid rgba(201,169,97,0.4);
-        }
-        .annee-link--cat:hover { background: var(--gold); color: var(--wine-deep); }
-        .annee-link--cmd {
-            background: rgba(107,30,60,0.08); color: var(--wine-burgundy);
-            border: 1px solid rgba(107,30,60,0.2);
-        }
-        .annee-link--cmd:hover { background: var(--wine-burgundy); color: white; }
-
-        /* ── BOUTON SUPPRIMER EN-TÊTE FICHE ── */
-        .btn-delete-header {
-            background: none;
-            border: 2px solid #c0392b;
-            color: #c0392b;
-            font-family: 'Playfair Display', serif;
-            font-size: 0.9rem;
-            font-weight: 600;
-            padding: 0.5rem 1.2rem;
-            border-radius: 2px;
-            cursor: pointer;
-            transition: all 0.25s;
-            letter-spacing: 0.03em;
-        }
-        .btn-delete-header:hover {
-            background: #c0392b;
-            color: white;
-        }
-
-        /* ── MODAL DANGER (suppression groupement) ── */
-        .modal-box--sm { max-width: 480px; }
-        .modal-head--danger {
-            background: linear-gradient(135deg, #8B1A1A, #c0392b);
-        }
-        .danger-icon {
-            font-size: 3rem;
-            text-align: center;
-            margin: 0.5rem 0 1.2rem;
-        }
-        .danger-msg {
-            text-align: center;
-            font-size: 1.15rem;
-            line-height: 1.6;
-            color: var(--dark);
-            margin-bottom: 0.8rem;
-        }
-        .danger-submsg {
-            text-align: center;
-            font-size: 0.95rem;
-            color: #888;
-            line-height: 1.5;
-        }
-        .btn-danger-confirm {
-            background: linear-gradient(135deg, #c0392b, #8B1A1A);
-            color: white;
-            box-shadow: 0 4px 12px rgba(192,57,43,0.3);
-        }
-        .btn-danger-confirm:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 16px rgba(192,57,43,0.4);
-        }
-
-        /* ── ICÔNE ÉDITION ASSOCIÉ ── */
-        .edit-icon-btn {
-            background: none;
-            border: none;
-            font-size: 1rem;
-            cursor: pointer;
-            padding: 0.3rem 0.5rem;
-            border-radius: 4px;
-            transition: background 0.2s;
-            opacity: 0.6;
-        }
-        .edit-icon-btn:hover {
-            background: rgba(107,30,60,0.08);
-            opacity: 1;
-        }
-
-        /* ── CONFIRM SUPPRESSION DANS MODAL ASSOCIÉ ── */
-        .confirm-danger-box {
-            background: #fdf0f0;
-            border: 1px solid #f5c6c6;
-            border-radius: 4px;
-            padding: 1rem 1.2rem;
-            margin-top: 1.5rem;
-            font-size: 0.95rem;
-        }
-        .btn-delete-outline {
-            background: none;
-            border: 2px solid #c0392b;
-            color: #c0392b;
-            font-family: 'Playfair Display', serif;
-            font-size: 0.85rem;
-            font-weight: 600;
-            padding: 0.6rem 1.2rem;
-            border-radius: 2px;
-            cursor: pointer;
-            transition: all 0.25s;
-        }
-        .btn-delete-outline:hover {
-            background: #c0392b;
-            color: white;
-        }
-
-        /* ── CATALOGUE STANDARD ── */
-        .catalogue-std-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.7rem;
-            margin: 1.2rem 0 1.5rem;
-        }
-        .catalogue-std-tag {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            background: linear-gradient(135deg, rgba(201,169,97,0.15), rgba(201,169,97,0.08));
-            border: 1px solid rgba(201,169,97,0.5);
-            border-radius: 2px;
-            padding: 0.45rem 0.8rem 0.45rem 1rem;
-            font-size: 0.95rem;
-            font-weight: 500;
-            color: #6b4c10;
-            transition: all 0.2s;
-        }
-        .catalogue-std-tag:hover {
-            border-color: var(--gold);
-            background: rgba(201,169,97,0.2);
-        }
-        .tag-remove-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            color: #b89451;
-            font-size: 1.1rem;
-            line-height: 1;
-            padding: 0;
-            font-weight: 700;
-            transition: color 0.2s;
-        }
-        .tag-remove-btn:hover { color: #c0392b; }
-        .catalogue-add-row {
-            display: flex;
-            gap: 0.8rem;
-            align-items: center;
-        }
-        .catalogue-add-input {
-            flex: 1;
-            margin-bottom: 0 !important;
-        }
-
-        /* ── MODAL MODIFICATION ASSOCIÉ select ── */
-        .finput[data-type="select"],
-        select.finput {
-            padding: 0.9rem 1rem;
-            border: 2px solid rgba(107,30,60,0.2);
-            border-radius: 2px;
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 1.05rem;
-            background: white;
-            color: var(--dark);
-            transition: border-color 0.25s;
-            cursor: pointer;
-        }
-        select.finput:focus {
-            outline: none;
-            border-color: var(--wine-burgundy);
-            box-shadow: 0 0 0 3px rgba(107,30,60,0.08);
-        }
-
-        /* Responsive */
-        @media (max-width: 900px) {
-            .two-col-grid { grid-template-columns: 1fr; }
-            .form-row-2   { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 768px) {
-            .logo {
-                font-size: 3rem;
-            }
-
-            .wine-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .nav {
-                flex-direction: column;
-            }
-
-            .nav-btn {
-                max-width: none;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GFA Manager — Administration</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Cormorant+Garamond:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- ══ FIREBASE (v10 CDN) ══ -->
+<script type="module">
+import { initializeApp }                    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut }
+                                            from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, doc, getDocs, getDoc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot }
+                                            from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ══════════════════════════════════════════════════════════
+//  ⚙️  REMPLACEZ CES VALEURS PAR VOTRE CONFIGURATION FIREBASE
+// ══════════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyB6MW35DPPsh59DoOEPVXml6FIvDNFgdI0",
+  authDomain: "gfa-manager-50a7f.firebaseapp.com",
+  projectId: "gfa-manager-50a7f",
+  storageBucket: "gfa-manager-50a7f.firebasestorage.app",
+  messagingSenderId: "224596157977",
+  appId: "1:224596157977:web:c8d09907b8185010076c88"
+};
+// ══════════════════════════════════════════════════════════
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+// ── Utilitaires Firestore ─────────────────────────────────
+async function getGroupements() {
+  const snap = await getDocs(collection(db, "groupements"));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+async function saveGroupement(g) {
+  if (g.id) {
+    await updateDoc(doc(db, "groupements", g.id), g);
+    return g.id;
+  } else {
+    const ref = await addDoc(collection(db, "groupements"), g);
+    return ref.id;
+  }
+}
+async function deleteGroupement(id) {
+  await deleteDoc(doc(db, "groupements", id));
+}
+async function saveAssocie(groupementId, associe) {
+  const ref = associe.id
+    ? doc(db, "groupements", groupementId, "associes", associe.id)
+    : doc(collection(db, "groupements", groupementId, "associes"));
+  await setDoc(ref, associe);
+  return ref.id;
+}
+async function deleteAssocie(groupementId, associeId) {
+  await deleteDoc(doc(db, "groupements", groupementId, "associes", associeId));
+}
+async function getAssocies(groupementId) {
+  const snap = await getDocs(collection(db, "groupements", groupementId, "associes"));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+// ── Génération de token unique pour un associé ─────────────
+function genToken() {
+  return [...crypto.getRandomValues(new Uint8Array(24))].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// ── Exposer sur window pour les fonctions inline ──────────
+window.GFA = { auth, db, getGroupements, saveGroupement, deleteGroupement,
+               saveAssocie, deleteAssocie, getAssocies, genToken,
+               signInWithEmailAndPassword, onAuthStateChanged, signOut };
+
+// ── Amorcer l'app dès que Firebase est prêt ───────────────
+onAuthStateChanged(auth, (user) => {
+  document.dispatchEvent(new CustomEvent('gfa:authchange', { detail: user }));
+});
+</script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --burg:#6B1E3C;--deep:#4A1228;--gold:#C9A961;
+  --cream:#F8F5EF;--dark:#2C1810;--sage:#8B9A7E;--terra:#C67B5C;
+}
+body{font-family:'Cormorant Garamond',serif;background:var(--cream);color:var(--dark);overflow-x:hidden}
+
+/* ── GRAIN ── */
+.grain{position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.03;
+  background:url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+/* ── LOGIN ── */
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--burg),var(--deep))}
+.login-box{background:white;border-radius:4px;padding:3rem;width:100%;max-width:440px;
+  box-shadow:0 24px 64px rgba(0,0,0,.35);animation:fadeIn .5s}
+.login-logo{font-family:'Playfair Display',serif;font-size:2.8rem;font-weight:900;
+  color:var(--burg);text-align:center;margin-bottom:.3rem}
+.login-logo span{color:var(--gold);font-style:italic}
+.login-sub{text-align:center;color:#999;font-size:1rem;margin-bottom:2.5rem}
+.login-err{background:#fdf0f0;border:1px solid #f5c6c6;border-radius:2px;
+  padding:.8rem 1rem;color:#a00;font-size:.95rem;margin-bottom:1rem}
+.finput{width:100%;padding:1rem 1.1rem;border:2px solid rgba(107,30,60,.2);border-radius:2px;
+  font-family:'Cormorant Garamond',serif;font-size:1.05rem;color:var(--dark);
+  transition:border-color .25s;margin-bottom:1.2rem;background:white}
+.finput:focus{outline:none;border-color:var(--burg);box-shadow:0 0 0 3px rgba(107,30,60,.08)}
+
+/* ── HEADER ── */
+.header{background:linear-gradient(135deg,var(--burg),var(--deep));color:var(--cream);
+  padding:2.5rem 2rem;position:relative;overflow:hidden}
+.header::before{content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(45deg,transparent,transparent 35px,rgba(255,255,255,.03) 35px,rgba(255,255,255,.03) 70px),
+             repeating-linear-gradient(-45deg,transparent,transparent 35px,rgba(255,255,255,.03) 35px,rgba(255,255,255,.03) 70px);
+  pointer-events:none}
+.header-inner{max-width:1400px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;position:relative;z-index:2}
+.logo{font-family:'Playfair Display',serif;font-size:2.8rem;font-weight:900;letter-spacing:-.02em}
+.logo span{color:var(--gold);font-style:italic}
+.tagline{font-size:1rem;opacity:.8;font-weight:300}
+.logout-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;
+  font-family:'Playfair Display',serif;font-size:.9rem;padding:.6rem 1.4rem;border-radius:2px;
+  cursor:pointer;transition:all .25s}
+.logout-btn:hover{background:rgba(255,255,255,.25)}
+
+/* ── NAV ── */
+.nav-bar{background:white;box-shadow:0 4px 20px rgba(107,30,60,.1);position:sticky;top:0;z-index:100}
+.nav-inner{max-width:1400px;margin:0 auto;display:flex}
+.nav-btn{flex:1;max-width:300px;padding:1.4rem 2rem;border:none;background:transparent;
+  font-family:'Playfair Display',serif;font-size:1.05rem;font-weight:600;color:var(--burg);
+  cursor:pointer;transition:all .35s;position:relative;border-bottom:3px solid transparent}
+.nav-btn::after{content:'';position:absolute;bottom:0;left:50%;width:0;height:3px;
+  background:var(--gold);transform:translateX(-50%);transition:width .35s}
+.nav-btn:hover::after,.nav-btn.active::after{width:100%}
+.nav-btn.active{color:var(--deep);background:linear-gradient(to bottom,rgba(201,169,97,.1),transparent)}
+
+/* ── MAIN ── */
+.main{max-width:1400px;margin:0 auto;padding:3rem 2rem;animation:fadeIn .5s}
+
+/* ── CARD ── */
+.card{background:white;border-radius:2px;padding:2.5rem;margin-bottom:2rem;
+  box-shadow:0 2px 4px rgba(107,30,60,.08),0 8px 16px rgba(107,30,60,.06),inset 0 0 0 1px rgba(107,30,60,.1);
+  transition:transform .3s,box-shadow .3s;position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,transparent,rgba(201,169,97,.03));pointer-events:none}
+.card-header{display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:2rem;padding-bottom:1.5rem;border-bottom:1px solid rgba(107,30,60,.1)}
+.card-title{font-family:'Playfair Display',serif;font-size:2rem;font-weight:700;color:var(--burg)}
+
+/* ── BOUTONS ── */
+.btn{padding:1rem 2.5rem;border:none;border-radius:2px;font-family:'Playfair Display',serif;
+  font-size:1rem;font-weight:600;letter-spacing:.04em;cursor:pointer;
+  transition:all .3s;text-transform:uppercase;position:relative;overflow:hidden}
+.btn-primary{background:linear-gradient(135deg,var(--burg),var(--deep));color:white;
+  box-shadow:0 4px 16px rgba(107,30,60,.3)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(107,30,60,.4)}
+.btn-success{background:linear-gradient(135deg,var(--sage),#6b8a5e);color:white;
+  box-shadow:0 4px 16px rgba(139,154,126,.3)}
+.btn-gold{background:linear-gradient(135deg,var(--gold),#b89451);color:var(--deep);
+  box-shadow:0 4px 16px rgba(201,169,97,.4)}
+.btn-secondary{background:#e8e4dc;color:var(--dark)}
+.btn-secondary:hover{background:#ddd8cf}
+.btn-danger-confirm{background:linear-gradient(135deg,#c0392b,#8B1A1A);color:white;
+  box-shadow:0 4px 12px rgba(192,57,43,.3)}
+.btn-sm{padding:.65rem 1.4rem;font-size:.85rem}
+
+/* ── BADGES ── */
+.badge{display:inline-block;padding:.4rem 1rem;border-radius:2px;font-size:.82rem;
+  font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+.badge-success{background:linear-gradient(135deg,var(--sage),#6b8a5e);color:white}
+.badge-warning{background:linear-gradient(135deg,var(--terra),#b56a4e);color:white}
+
+/* ── INFO ITEMS ── */
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.2rem;margin-top:1.5rem}
+.info-item{padding:1.2rem 1.4rem;background:linear-gradient(135deg,rgba(107,30,60,.03),rgba(201,169,97,.03));
+  border-left:3px solid var(--burg);border-radius:2px}
+.lbl{font-size:.85rem;text-transform:uppercase;letter-spacing:.1em;color:var(--burg);font-weight:600;margin-bottom:.4rem}
+.val{font-family:'Playfair Display',serif;font-size:1.25rem;color:var(--dark);font-weight:600}
+
+/* ── GROUPEMENT ROW ── */
+.glist{display:flex;flex-direction:column;gap:1rem}
+.grow{display:flex;align-items:stretch;border:1px solid rgba(107,30,60,.12);border-radius:4px;overflow:hidden}
+.gcell{flex:1;padding:1.3rem 1.5rem;border-right:1px solid rgba(107,30,60,.1);min-width:0}
+.gcell:last-child{border-right:none}
+.gcell--name{flex:1.4;background:linear-gradient(135deg,rgba(107,30,60,.03),transparent)}
+.gcell--parts{flex:.9}.gcell--nb{flex:.8}
+.gcell--actions{flex:0 0 auto;display:flex;flex-direction:column;gap:.6rem;
+  padding:1.1rem 1.4rem;background:rgba(248,245,239,.6);align-items:stretch}
+.gnom{font-family:'Playfair Display',serif;font-size:1.25rem;font-weight:700;color:var(--deep)}
+.gdate{font-size:.82rem;color:#999;font-style:italic;margin-top:.2rem}
+.parts-sub{font-size:.82rem;color:#999;font-weight:400;margin-left:.3rem}
+
+/* ── MODAL ── */
+.backdrop{position:fixed;inset:0;background:rgba(44,24,16,.55);z-index:500;
+  display:flex;align-items:center;justify-content:center;padding:1.5rem;animation:fadeIn .2s}
+.mbox{background:white;border-radius:4px;width:100%;max-width:700px;
+  max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(107,30,60,.35)}
+.mbox--sm{max-width:480px}
+.mhead{background:linear-gradient(135deg,var(--burg),var(--deep));color:white;
+  padding:1.6rem 2rem;display:flex;justify-content:space-between;align-items:center}
+.mhead--danger{background:linear-gradient(135deg,#8B1A1A,#c0392b)}
+.mtitle{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700}
+.mclose{background:none;border:none;color:white;font-size:1.3rem;cursor:pointer;opacity:.8}
+.mclose:hover{opacity:1}
+.mbody{padding:2rem}
+.mfoot{padding:1.4rem 2rem;border-top:1px solid rgba(107,30,60,.1);
+  display:flex;justify-content:flex-end;gap:1rem;background:rgba(248,245,239,.5)}
+.mfoot--between{justify-content:space-between}
+.form2{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem}
+.fg{display:flex;flex-direction:column;gap:.5rem;margin-bottom:1.4rem}
+.flbl{font-family:'Playfair Display',serif;font-size:.9rem;font-weight:600;
+  color:var(--burg);text-transform:uppercase;letter-spacing:.05em}
+select.finput,textarea.finput{background:white;cursor:pointer;resize:vertical}
+.danger-icon{font-size:3rem;text-align:center;margin:1rem 0}
+.danger-msg{text-align:center;font-size:1.1rem;line-height:1.6;margin-bottom:.8rem}
+.danger-sub{text-align:center;font-size:.92rem;color:#888;line-height:1.5}
+.confirm-box{background:#fdf0f0;border:1px solid #f5c6c6;border-radius:4px;padding:1rem;margin-top:1.2rem}
+.btn-del-outline{background:none;border:2px solid #c0392b;color:#c0392b;
+  font-family:'Playfair Display',serif;font-size:.85rem;font-weight:600;
+  padding:.55rem 1.2rem;border-radius:2px;cursor:pointer;transition:all .25s}
+.btn-del-outline:hover{background:#c0392b;color:white}
+
+/* ── FICHE ── */
+.fiche{animation:fadeIn .35s}
+.breadcrumb{display:flex;align-items:center;gap:.8rem;margin-bottom:2rem;font-size:1rem;color:#888}
+.bc-back{background:none;border:none;color:var(--burg);font-family:'Cormorant Garamond',serif;
+  font-size:1rem;font-weight:600;cursor:pointer;padding:0;transition:opacity .2s}
+.bc-back:hover{opacity:.7}
+.fhead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2rem}
+.ftitle{font-family:'Playfair Display',serif;font-size:2.6rem;font-weight:900;color:var(--deep)}
+.fsub{font-size:.95rem;color:#999;font-style:italic;margin-top:.3rem}
+.fhead-right{display:flex;align-items:center;gap:1rem}
+.section-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem}
+.section-title{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;color:var(--burg)}
+
+/* ── BOUTON SUPPRIMER GROUPEMENT ── */
+.btn-del-header{background:none;border:2px solid #c0392b;color:#c0392b;
+  font-family:'Playfair Display',serif;font-size:.88rem;font-weight:600;
+  padding:.5rem 1.1rem;border-radius:2px;cursor:pointer;transition:all .25s}
+.btn-del-header:hover{background:#c0392b;color:white}
+
+/* ── TABLEAU ASSOCIÉS ── */
+.twrap{overflow-x:auto;border:1px solid rgba(107,30,60,.1);border-radius:3px}
+.tbl{width:100%;border-collapse:collapse;font-size:.92rem}
+.tbl th{background:linear-gradient(to bottom,var(--burg),var(--deep));color:var(--cream);
+  padding:.85rem 1rem;text-align:left;font-family:'Playfair Display',serif;
+  font-size:.82rem;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.tbl td{padding:.8rem 1rem;border-bottom:1px solid rgba(107,30,60,.07);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:rgba(248,245,239,.7)}
+.row-off td{opacity:.45}
+.td-b{font-weight:700;color:var(--deep)}
+.td-c{text-align:center;font-weight:600}
+.td-sm{font-size:.85rem;color:#666;max-width:180px}
+.td-link{color:var(--burg);text-decoration:none;font-size:.85rem}
+.td-link:hover{text-decoration:underline}
+.td-nw{white-space:nowrap}
+.etat{display:inline-block;padding:.25rem .8rem;border-radius:2px;font-size:.78rem;font-weight:700;text-transform:capitalize}
+.etat-bernard{background:rgba(201,169,97,.2);color:#7a5a10}
+.etat-vigneron{background:rgba(107,30,60,.12);color:var(--deep)}
+.edit-btn{background:none;border:none;font-size:.95rem;cursor:pointer;
+  padding:.25rem .45rem;border-radius:3px;opacity:.55;transition:all .2s}
+.edit-btn:hover{background:rgba(107,30,60,.08);opacity:1}
+
+/* ── LIEN ASSOCIÉ ── */
+.link-box{display:flex;align-items:center;gap:.8rem;margin-top:.5rem}
+.link-input{flex:1;padding:.5rem .8rem;border:1px solid rgba(107,30,60,.2);border-radius:2px;
+  font-size:.82rem;color:#555;background:#fafafa;font-family:'Cormorant Garamond',serif}
+.copy-btn{background:var(--burg);color:white;border:none;padding:.5rem 1rem;
+  border-radius:2px;cursor:pointer;font-size:.82rem;font-weight:600;transition:all .2s;white-space:nowrap}
+.copy-btn:hover{background:var(--deep)}
+.copy-ok{color:var(--sage);font-size:.82rem;font-weight:600}
+
+/* ── COMMENTAIRE ── */
+.comment-area{width:100%;padding:1rem 1.2rem;border:2px solid rgba(107,30,60,.15);border-radius:2px;
+  font-family:'Cormorant Garamond',serif;font-size:1.05rem;color:var(--dark);
+  resize:vertical;min-height:110px;transition:border-color .25s;margin-top:1rem}
+.comment-area:focus{outline:none;border-color:var(--burg);box-shadow:0 0 0 3px rgba(107,30,60,.07)}
+.save-ok{color:var(--sage);font-weight:600;font-size:.95rem}
+
+/* ── DOCS ── */
+.doc-row{display:flex;align-items:center;gap:1rem;padding:.9rem 0;border-bottom:1px solid rgba(107,30,60,.07)}
+.doc-row:last-child{border-bottom:none}
+.doc-icon{font-size:1.4rem;flex-shrink:0}
+.doc-info{flex:1;min-width:0}
+.doc-name{font-weight:600;color:var(--dark);font-size:.95rem}
+.doc-date{font-size:.82rem;color:#999;margin-top:.15rem}
+.btn-link{color:var(--burg);font-weight:600;font-size:.85rem;text-decoration:none;
+  border:1px solid rgba(107,30,60,.25);padding:.35rem .8rem;border-radius:2px;white-space:nowrap;transition:all .2s}
+.btn-link:hover{background:var(--burg);color:white}
+
+/* ── CATALOGUES/COMMANDES ── */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-bottom:2rem}
+.annee-row{display:flex;align-items:flex-start;gap:1.5rem;padding:.9rem 0;border-bottom:1px solid rgba(107,30,60,.07)}
+.annee-row:last-child{border-bottom:none}
+.annee-lbl{font-family:'Playfair Display',serif;font-size:1.25rem;font-weight:700;color:var(--burg);min-width:50px}
+.annee-links{display:flex;flex-direction:column;gap:.4rem}
+.alink{font-size:.88rem;font-weight:600;text-decoration:none;padding:.3rem .8rem;border-radius:2px;transition:all .2s;display:inline-block}
+.alink-cat{background:rgba(201,169,97,.15);color:#7a5a10;border:1px solid rgba(201,169,97,.4)}
+.alink-cat:hover{background:var(--gold);color:var(--deep)}
+.alink-cmd{background:rgba(107,30,60,.08);color:var(--burg);border:1px solid rgba(107,30,60,.2)}
+.alink-cmd:hover{background:var(--burg);color:white}
+
+/* ── CATALOGUE STANDARD ── */
+.cat-tags{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.2rem 0 1.4rem}
+.ctag{display:flex;align-items:center;gap:.45rem;background:rgba(201,169,97,.15);
+  border:1px solid rgba(201,169,97,.5);border-radius:2px;padding:.4rem .8rem .4rem 1rem;
+  font-size:.92rem;font-weight:500;color:#6b4c10}
+.ctag:hover{background:rgba(201,169,97,.25)}
+.ctag-rm{background:none;border:none;cursor:pointer;color:#b89451;font-size:1rem;font-weight:700;transition:color .2s}
+.ctag-rm:hover{color:#c0392b}
+.cat-add{display:flex;gap:.8rem;align-items:center;margin-top:.5rem}
+.cat-add .finput{flex:1;margin-bottom:0}
+
+/* ── LOADING ── */
+.loading{text-align:center;padding:4rem 2rem;font-size:1.3rem;color:var(--burg);
+  font-family:'Playfair Display',serif}
+.empty{text-align:center;color:#aaa;font-style:italic;padding:1rem 0}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:2rem;right:2rem;background:white;border-left:4px solid var(--sage);
+  padding:1rem 1.5rem;border-radius:2px;box-shadow:0 8px 24px rgba(0,0,0,.15);
+  font-size:1rem;font-weight:600;color:var(--dark);z-index:9000;animation:slideUp .3s}
+.toast-err{border-color:#c0392b;color:#c0392b}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeIn{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeInDown{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:900px){.two-col{grid-template-columns:1fr}.form2{grid-template-columns:1fr}}
+@media(max-width:700px){
+  .grow{flex-direction:column}
+  .gcell{border-right:none;border-bottom:1px solid rgba(107,30,60,.08)}
+  .gcell--actions{flex-direction:row}
+}
+</style>
 </head>
 <body>
-    <div class="grain-overlay"></div>
-    <div id="root"></div>
+<div class="grain"></div>
 
-    <script type="text/babel">
-        const { useState } = React;
+<!-- ══ ÉCRAN DE CONNEXION ══ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo"><span>GFA</span> Manager</div>
+    <div class="login-sub">Espace Administrateur</div>
+    <div id="login-err" class="login-err" style="display:none"></div>
+    <div class="fg">
+      <label class="flbl">Email</label>
+      <input class="finput" id="l-email" type="email" placeholder="admin@votredomaine.fr" autocomplete="email">
+    </div>
+    <div class="fg">
+      <label class="flbl">Mot de passe</label>
+      <input class="finput" id="l-pwd" type="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" style="width:100%" id="l-btn">Se connecter</button>
+  </div>
+</div>
 
-        // ─── DONNÉES DE DÉMONSTRATION ───────────────────────────────────────
-        const INITIAL_GROUPEMENTS = [
-            {
-                id: 1,
-                nom: "Les Théories du Caveau",
-                vigneron: "Domaine Loic Durand",
-                appellation: "Haute Côte de Beaune",
-                date_creation: "15 janvier 2020",
-                nombre_total_parts: 120,
-                parts_pour_bouteille: 3,
-                actif: true,
-                commentaire: "Groupement fondé en 2020. Excellentes vendanges depuis 3 ans. Prévoir augmentation du nombre de parts pour 2025.",
-                associes: [
-                    { id:1, nom:"Dupont",  prenom:"Jean",    parts:12, adresse:"15 Rue de la Vigne, 21200 Beaune",          email:"jean.dupont@email.fr",    tel:"06 12 34 56 78", etat:"bernard",  actif:true  },
-                    { id:2, nom:"Martin",  prenom:"Sophie",  parts:9,  adresse:"22 Av. des Châteaux, 21200 Beaune",         email:"sophie.martin@email.fr",  tel:"06 23 45 67 89", etat:"vigneron", actif:true  },
-                    { id:3, nom:"Bernard", prenom:"Pierre",  parts:6,  adresse:"8 Chemin des Vignes, 21200 Beaune",         email:"pierre.bernard@email.fr", tel:"06 34 56 78 90", etat:"bernard",  actif:true  },
-                    { id:4, nom:"Rousseau",prenom:"Marie",   parts:3,  adresse:"45 Bd du Vin, 21200 Beaune",               email:"marie.rousseau@email.fr", tel:"06 45 67 89 01", etat:"vigneron", actif:false },
-                    { id:5, nom:"Leroy",   prenom:"François",parts:15, adresse:"3 Impasse du Terroir, 21700 Nuits-Saint-Georges", email:"f.leroy@email.fr",  tel:"06 56 78 90 12", etat:"bernard",  actif:true  },
-                ],
-                documents: [
-                    { id:1, nom:"Règlement intérieur 2020.pdf", date:"12/01/2020", type:"doc" },
-                    { id:2, nom:"Statuts GFA.pdf",              date:"15/01/2020", type:"doc" },
-                ],
-                catalogues: [
-                    { annee:2022, url:"#", label:"Catalogue Loic Durand 2022" },
-                    { annee:2023, url:"#", label:"Catalogue Loic Durand 2023" },
-                    { annee:2024, url:"#", label:"Catalogue Loic Durand 2024" },
-                ],
-                commandes: [
-                    { annee:2022, url:"#", label:"Commandes 2022 — 38 associés" },
-                    { annee:2023, url:"#", label:"Commandes 2023 — 40 associés" },
-                    { annee:2024, url:"#", label:"Commandes 2024 — en cours"   },
-                ],
-            },
-            {
-                id: 2,
-                nom: "La vigne aux chèvres",
-                vigneron: "Domaine Loic Durand",
-                appellation: "Haute Côte de Beaune",
-                date_creation: "10 mars 2021",
-                nombre_total_parts: 90,
-                parts_pour_bouteille: 2,
-                actif: true,
-                commentaire: "Second groupement créé en 2021. Très bonne cohésion du groupe.",
-                associes: [
-                    { id:6,  nom:"Petit",   prenom:"Luc",     parts:8,  adresse:"10 Rue du Clos, 21550 Ladoix-Serrigny",    email:"luc.petit@email.fr",    tel:"06 67 89 01 23", etat:"bernard",  actif:true },
-                    { id:7,  nom:"Moreau",  prenom:"Isabelle",parts:6,  adresse:"27 Route des Grands Crus, 21700 Vosne",    email:"i.moreau@email.fr",     tel:"06 78 90 12 34", etat:"vigneron", actif:true },
-                    { id:8,  nom:"Simon",   prenom:"Marc",    parts:4,  adresse:"5 Place du Village, 21420 Savigny",         email:"marc.simon@email.fr",   tel:"06 89 01 23 45", etat:"bernard",  actif:true },
-                ],
-                documents: [
-                    { id:3, nom:"Statuts La vigne aux chèvres.pdf", date:"10/03/2021", type:"doc" },
-                ],
-                catalogues: [
-                    { annee:2023, url:"#", label:"Catalogue Loic Durand 2023" },
-                    { annee:2024, url:"#", label:"Catalogue Loic Durand 2024" },
-                ],
-                commandes: [
-                    { annee:2023, url:"#", label:"Commandes 2023 — 38 associés" },
-                    { annee:2024, url:"#", label:"Commandes 2024 — en cours"   },
-                ],
-            },
-        ];
+<!-- ══ APP PRINCIPALE ══ -->
+<div id="app" style="display:none">
+  <header class="header">
+    <div class="header-inner">
+      <div>
+        <div class="logo"><span>GFA</span> Manager</div>
+        <div class="tagline">Gestion des Groupements Fonciers Agricoles</div>
+      </div>
+      <button class="logout-btn" id="logout-btn">Déconnexion</button>
+    </div>
+  </header>
+  <nav class="nav-bar">
+    <div class="nav-inner">
+      <button class="nav-btn active" data-tab="admin">Administration</button>
+      <button class="nav-btn" data-tab="associes">Vue Associés</button>
+    </div>
+  </nav>
+  <main class="main" id="main-content">
+    <div class="loading">Chargement…</div>
+  </main>
+</div>
 
-        const DEMO_VINS = [
-            { id:1, nom:"Haute Côte de Beaune Rouge 2021", description:"Pinot Noir, élevage 12 mois fût de chêne", prix:22.00 },
-            { id:2, nom:"Haute Côte de Beaune Blanc 2022", description:"Chardonnay vif et minéral", prix:19.50 },
-            { id:3, nom:"Réserve Loic Durand 2020",        description:"Cuvée prestige, vieilles vignes", prix:34.00, stock:40 },
-            { id:4, nom:"Village 2022",                    description:"Appellation Village, belle structure", prix:16.00 },
-            { id:5, nom:"Premier Cru Les Hauts 2019",      description:"Garde 8-12 ans, grande finesse", prix:48.00, stock:25 },
-            { id:6, nom:"Bourgogne Générique 2023",        description:"Souple et fruité, à boire jeune", prix:11.50 },
-        ];
+<!-- ══ CONTENEUR MODAUX ══ -->
+<div id="modals"></div>
+<!-- ══ TOAST ══ -->
+<div id="toast" style="display:none"></div>
 
-        // ─── FORMULAIRE NOUVEAU GROUPEMENT ──────────────────────────────────
-        function ModalNouveauGroupement({ onClose, onSave }) {
-            const [form, setForm] = useState({
-                nom:"", vigneron:"", appellation:"", date_creation:"",
-                nombre_total_parts:"", parts_pour_bouteille:""
-            });
-            const set = (k,v) => setForm(f => ({...f, [k]:v}));
+<script>
+// ════════════════════════════════════════════════════════════════
+//  ÉTAT GLOBAL
+// ════════════════════════════════════════════════════════════════
+const STATE = {
+  user: null,
+  groupements: [],
+  ficheId: null,
+  activeTab: 'admin',
+};
 
-            const handleSave = () => {
-                if (!form.nom || !form.vigneron || !form.appellation) return;
-                onSave({
-                    ...form,
-                    id: Date.now(),
-                    nombre_total_parts: parseInt(form.nombre_total_parts)||0,
-                    parts_pour_bouteille: parseInt(form.parts_pour_bouteille)||1,
-                    actif:true, associes:[], documents:[], catalogues:[], commandes:[],
-                    commentaire:""
-                });
-                onClose();
-            };
+const CATALOGUE_STD_DEFAULT = [
+  "Bourgogne Aligoté","Bourgogne Chardonnay","Bourgogne Pinot Noir",
+  "Haute Côte de Beaune Rouge","Haute Côte de Beaune Blanc",
+  "Côte de Beaune Village","Beaune Premier Cru",
+];
 
-            return (
-                <div className="modal-backdrop" onClick={onClose}>
-                    <div className="modal-box" onClick={e => e.stopPropagation()}>
-                        <div className="modal-head">
-                            <h3 className="modal-title">Nouveau Groupement</h3>
-                            <button className="modal-close-btn" onClick={onClose}>✕</button>
-                        </div>
-                        <div className="modal-body">
-                            <div className="form-row-2">
-                                <div className="fgroup">
-                                    <label className="flabel">Nom du groupement *</label>
-                                    <input className="finput" placeholder="ex. Les Vignerons du Clos" value={form.nom} onChange={e=>set('nom',e.target.value)} />
-                                </div>
-                                <div className="fgroup">
-                                    <label className="flabel">Vigneron *</label>
-                                    <input className="finput" placeholder="ex. Domaine Loic Durand" value={form.vigneron} onChange={e=>set('vigneron',e.target.value)} />
-                                </div>
-                            </div>
-                            <div className="form-row-2">
-                                <div className="fgroup">
-                                    <label className="flabel">Appellation *</label>
-                                    <input className="finput" placeholder="ex. Haute Côte de Beaune" value={form.appellation} onChange={e=>set('appellation',e.target.value)} />
-                                </div>
-                                <div className="fgroup">
-                                    <label className="flabel">Date de création</label>
-                                    <input className="finput" placeholder="ex. 15 janvier 2024" value={form.date_creation} onChange={e=>set('date_creation',e.target.value)} />
-                                </div>
-                            </div>
-                            <div className="form-row-2">
-                                <div className="fgroup">
-                                    <label className="flabel">Nombre total de parts *</label>
-                                    <input className="finput" type="number" placeholder="ex. 120" value={form.nombre_total_parts} onChange={e=>set('nombre_total_parts',e.target.value)} />
-                                </div>
-                                <div className="fgroup">
-                                    <label className="flabel">Parts pour une bouteille *</label>
-                                    <input className="finput" type="number" placeholder="ex. 3" value={form.parts_pour_bouteille} onChange={e=>set('parts_pour_bouteille',e.target.value)} />
-                                </div>
-                            </div>
-                        </div>
-                        <div className="modal-foot">
-                            <button className="btn btn-secondary" onClick={onClose}>Annuler</button>
-                            <button className="btn btn-gold" onClick={handleSave}>Créer le groupement</button>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
+// ════════════════════════════════════════════════════════════════
+//  UTILITAIRES UI
+// ════════════════════════════════════════════════════════════════
+function $(id){ return document.getElementById(id); }
+function el(tag, attrs={}, ...children){
+  const e = document.createElement(tag);
+  for(const [k,v] of Object.entries(attrs)){
+    if(k==='class') e.className=v;
+    else if(k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(),v);
+    else e.setAttribute(k,v);
+  }
+  children.forEach(c=>{ if(c!=null) e.append(typeof c==='string'?document.createTextNode(c):c); });
+  return e;
+}
+function html(tag, content, cls=''){
+  const e = document.createElement(tag);
+  e.className=cls; e.innerHTML=content; return e;
+}
+function toast(msg, err=false){
+  const t=$('toast'); t.textContent=msg; t.className='toast'+(err?' toast-err':'');
+  t.style.display='block'; setTimeout(()=>t.style.display='none',3000);
+}
+function openModal(content){
+  const wrap=document.createElement('div');
+  wrap.className='backdrop';
+  wrap.addEventListener('click',e=>{ if(e.target===wrap) closeModal(); });
+  wrap.appendChild(content);
+  $('modals').innerHTML=''; $('modals').appendChild(wrap);
+}
+function closeModal(){ $('modals').innerHTML=''; }
 
-        // ─── MODAL MODIFICATION ASSOCIÉ ─────────────────────────────────────
-        function ModalEditAssocie({ associe, onClose, onSave, onDelete }) {
-            const [form, setForm] = useState({ ...associe });
-            const [confirmDelete, setConfirmDelete] = useState(false);
-            const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+// ════════════════════════════════════════════════════════════════
+//  AUTH
+// ════════════════════════════════════════════════════════════════
+document.addEventListener('gfa:authchange', e => {
+  STATE.user = e.detail;
+  if(STATE.user){
+    $('login-screen').style.display='none';
+    $('app').style.display='block';
+    loadAll();
+  } else {
+    $('login-screen').style.display='flex';
+    $('app').style.display='none';
+  }
+});
 
-            return (
-                <div className="modal-backdrop" onClick={onClose}>
-                    <div className="modal-box" onClick={e => e.stopPropagation()}>
-                        <div className="modal-head">
-                            <h3 className="modal-title">Modifier l'associé</h3>
-                            <button className="modal-close-btn" onClick={onClose}>✕</button>
-                        </div>
-                        <div className="modal-body">
-                            <div className="form-row-2">
-                                <div className="fgroup">
-                                    <label className="flabel">Nom</label>
-                                    <input className="finput" value={form.nom} onChange={e => set('nom', e.target.value)} />
-                                </div>
-                                <div className="fgroup">
-                                    <label className="flabel">Prénom</label>
-                                    <input className="finput" value={form.prenom} onChange={e => set('prenom', e.target.value)} />
-                                </div>
-                            </div>
-                            <div className="form-row-2">
-                                <div className="fgroup">
-                                    <label className="flabel">Nombre de parts</label>
-                                    <input className="finput" type="number" value={form.parts} onChange={e => set('parts', parseInt(e.target.value)||0)} />
-                                </div>
-                                <div className="fgroup">
-                                    <label className="flabel">Téléphone</label>
-                                    <input className="finput" value={form.tel} onChange={e => set('tel', e.target.value)} />
-                                </div>
-                            </div>
-                            <div className="fgroup" style={{marginBottom:'1.5rem'}}>
-                                <label className="flabel">Adresse de livraison</label>
-                                <input className="finput" value={form.adresse} onChange={e => set('adresse', e.target.value)} />
-                            </div>
-                            <div className="fgroup" style={{marginBottom:'1.5rem'}}>
-                                <label className="flabel">Email</label>
-                                <input className="finput" type="email" value={form.email} onChange={e => set('email', e.target.value)} />
-                            </div>
-                            <div className="form-row-2">
-                                <div className="fgroup">
-                                    <label className="flabel">État</label>
-                                    <select className="finput" value={form.etat} onChange={e => set('etat', e.target.value)}>
-                                        <option value="bernard">Bernard</option>
-                                        <option value="vigneron">Vigneron</option>
-                                    </select>
-                                </div>
-                                <div className="fgroup">
-                                    <label className="flabel">Statut</label>
-                                    <select className="finput" value={form.actif ? 'actif' : 'inactif'} onChange={e => set('actif', e.target.value === 'actif')}>
-                                        <option value="actif">Actif</option>
-                                        <option value="inactif">Inactif</option>
-                                    </select>
-                                </div>
-                            </div>
+$('l-btn').addEventListener('click', async () => {
+  const email=$('l-email').value.trim(), pwd=$('l-pwd').value;
+  if(!email||!pwd) return;
+  $('l-btn').textContent='Connexion…'; $('l-btn').disabled=true;
+  try {
+    await window.GFA.signInWithEmailAndPassword(window.GFA.auth, email, pwd);
+  } catch(err){
+    $('login-err').textContent='Email ou mot de passe incorrect.';
+    $('login-err').style.display='block';
+  }
+  $('l-btn').textContent='Se connecter'; $('l-btn').disabled=false;
+});
 
-                            {confirmDelete && (
-                                <div className="confirm-danger-box">
-                                    <p>⚠️ Confirmer la suppression de <strong>{associe.prenom} {associe.nom}</strong> ?</p>
-                                    <div style={{display:'flex', gap:'0.8rem', marginTop:'0.8rem'}}>
-                                        <button className="btn btn-danger-confirm" onClick={() => onDelete(associe.id)}>Oui, supprimer</button>
-                                        <button className="btn btn-secondary" onClick={() => setConfirmDelete(false)}>Annuler</button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        <div className="modal-foot" style={{justifyContent:'space-between'}}>
-                            <button className="btn btn-delete-outline" onClick={() => setConfirmDelete(true)}>
-                                🗑 Supprimer
-                            </button>
-                            <div style={{display:'flex', gap:'1rem'}}>
-                                <button className="btn btn-secondary" onClick={onClose}>Annuler</button>
-                                <button className="btn btn-gold" onClick={() => { onSave(form); onClose(); }}>Enregistrer</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
+$('l-pwd').addEventListener('keydown', e=>{ if(e.key==='Enter') $('l-btn').click(); });
 
-        // ─── POPUP CONFIRMATION SUPPRESSION GROUPEMENT ──────────────────────
-        function ModalConfirmSupprimer({ nom, onConfirm, onCancel }) {
-            return (
-                <div className="modal-backdrop" onClick={onCancel}>
-                    <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
-                        <div className="modal-head modal-head--danger">
-                            <h3 className="modal-title">Supprimer le groupement</h3>
-                            <button className="modal-close-btn" onClick={onCancel}>✕</button>
-                        </div>
-                        <div className="modal-body">
-                            <div className="danger-icon">⚠️</div>
-                            <p className="danger-msg">
-                                Vous êtes sur le point de supprimer le groupement<br/>
-                                <strong>« {nom} »</strong>.
-                            </p>
-                            <p className="danger-submsg">
-                                Cette action est irréversible. Toutes les données associées seront définitivement supprimées : associés, documents, catalogues et historique des commandes.
-                            </p>
-                        </div>
-                        <div className="modal-foot">
-                            <button className="btn btn-secondary" onClick={onCancel}>Annuler</button>
-                            <button className="btn btn-danger-confirm" onClick={onConfirm}>Confirmer la suppression</button>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
+$('logout-btn').addEventListener('click', () => window.GFA.signOut(window.GFA.auth));
 
-        // ─── FICHE DÉTAIL GROUPEMENT ─────────────────────────────────────────
-        const CATALOGUE_STANDARD_INIT = [
-            "Bourgogne Aligoté", "Bourgogne Chardonnay", "Bourgogne Pinot Noir",
-            "Haute Côte de Beaune Rouge", "Haute Côte de Beaune Blanc",
-            "Côte de Beaune Village", "Beaune Premier Cru",
-        ];
+// ════════════════════════════════════════════════════════════════
+//  NAVIGATION
+// ════════════════════════════════════════════════════════════════
+document.querySelectorAll('.nav-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    STATE.activeTab=btn.dataset.tab;
+    STATE.ficheId=null;
+    render();
+  });
+});
 
-        function FicheGroupement({ g, onBack, onDelete }) {
-            const [associes, setAssocies]           = useState(g.associes);
-            const [commentaire, setCommentaire]     = useState(g.commentaire);
-            const [saved, setSaved]                 = useState(false);
-            const [editAssocie, setEditAssocie]     = useState(null);
-            const [showConfirmDel, setShowConfirmDel] = useState(false);
-            const [catalogueStd, setCatalogueStd]   = useState(CATALOGUE_STANDARD_INIT);
-            const [newAppellation, setNewAppellation] = useState('');
+// ════════════════════════════════════════════════════════════════
+//  CHARGEMENT DONNÉES
+// ════════════════════════════════════════════════════════════════
+async function loadAll(){
+  $('main-content').innerHTML='<div class="loading">Chargement des groupements…</div>';
+  STATE.groupements = await window.GFA.getGroupements();
+  for(const g of STATE.groupements){
+    g.associes = await window.GFA.getAssocies(g.id);
+  }
+  render();
+}
 
-            const saveComment = () => { setSaved(true); setTimeout(() => setSaved(false), 2500); };
+// ════════════════════════════════════════════════════════════════
+//  RENDER PRINCIPAL
+// ════════════════════════════════════════════════════════════════
+function render(){
+  const mc=$('main-content');
+  mc.innerHTML='';
+  if(STATE.activeTab==='admin'){
+    if(STATE.ficheId){
+      const g=STATE.groupements.find(x=>x.id===STATE.ficheId);
+      if(g) mc.appendChild(renderFiche(g));
+    } else {
+      mc.appendChild(renderAdmin());
+    }
+  } else {
+    mc.appendChild(renderAllAssocies());
+  }
+}
 
-            const handleSaveAssocie = (updated) => {
-                setAssocies(prev => prev.map(a => a.id === updated.id ? updated : a));
-            };
-            const handleDeleteAssocie = (id) => {
-                setAssocies(prev => prev.filter(a => a.id !== id));
-                setEditAssocie(null);
-            };
+// ════════════════════════════════════════════════════════════════
+//  VUE ADMIN — LISTE GROUPEMENTS
+// ════════════════════════════════════════════════════════════════
+function renderAdmin(){
+  const wrap=el('div');
+  const card=el('div',{class:'card'});
+  const hdr=el('div',{class:'card-header'});
+  hdr.appendChild(html('h2','Groupements Actifs','card-title'));
+  const btnNew=el('button',{class:'btn btn-gold',onClick:()=>openModalGroupement()},
+    '+ Nouveau Groupement');
+  hdr.appendChild(btnNew);
+  card.appendChild(hdr);
 
-            const addAppellation = () => {
-                const v = newAppellation.trim();
-                if (v && !catalogueStd.includes(v)) {
-                    setCatalogueStd(prev => [...prev, v]);
-                    setNewAppellation('');
-                }
-            };
-            const removeAppellation = (app) => {
-                setCatalogueStd(prev => prev.filter(a => a !== app));
-            };
+  const list=el('div',{class:'glist'});
+  if(STATE.groupements.length===0){
+    list.appendChild(html('p','Aucun groupement. Cliquez sur "+ Nouveau Groupement" pour commencer.','empty'));
+  } else {
+    STATE.groupements.forEach(g=>list.appendChild(renderGroupementRow(g)));
+  }
+  card.appendChild(list);
+  wrap.appendChild(card);
+  return wrap;
+}
 
-            return (
-                <div className="fiche-container">
-                    {/* Modaux */}
-                    {editAssocie && (
-                        <ModalEditAssocie
-                            associe={editAssocie}
-                            onClose={() => setEditAssocie(null)}
-                            onSave={handleSaveAssocie}
-                            onDelete={handleDeleteAssocie}
-                        />
-                    )}
-                    {showConfirmDel && (
-                        <ModalConfirmSupprimer
-                            nom={g.nom}
-                            onConfirm={onDelete}
-                            onCancel={() => setShowConfirmDel(false)}
-                        />
-                    )}
+function renderGroupementRow(g){
+  const row=el('div',{class:'grow'});
 
-                    {/* Breadcrumb */}
-                    <div className="breadcrumb">
-                        <button className="breadcrumb-back" onClick={onBack}>← Retour aux groupements</button>
-                        <span className="breadcrumb-sep">/</span>
-                        <span className="breadcrumb-current">{g.nom}</span>
-                    </div>
+  const name=el('div',{class:'gcell gcell--name'});
+  name.appendChild(html('div','Groupement','lbl'));
+  name.appendChild(html('div',esc(g.nom),'gnom'));
+  name.appendChild(html('div',g.date_creation?'Créé le '+esc(g.date_creation):'','gdate'));
+  row.appendChild(name);
 
-                    {/* En-tête */}
-                    <div className="fiche-header">
-                        <div>
-                            <h2 className="fiche-title">{g.nom}</h2>
-                            <div className="fiche-subtitle">Créé le {g.date_creation}</div>
-                        </div>
-                        <div style={{display:'flex', alignItems:'center', gap:'1rem'}}>
-                            <span className={`badge ${g.actif ? 'badge-success' : 'badge-warning'}`}>
-                                {g.actif ? 'Actif' : 'Inactif'}
-                            </span>
-                            <button className="btn-delete-header" onClick={() => setShowConfirmDel(true)}>
-                                🗑 Supprimer
-                            </button>
-                        </div>
-                    </div>
+  const vig=el('div',{class:'gcell'});
+  vig.appendChild(html('div','Vigneron','lbl'));
+  vig.appendChild(html('div',esc(g.vigneron),'val'));
+  row.appendChild(vig);
 
-                    {/* Informations générales */}
-                    <div className="card">
-                        <h3 className="section-title">Informations du groupement</h3>
-                        <div className="fiche-info-grid">
-                            <div className="fiche-info-item">
-                                <div className="info-label">Vigneron</div>
-                                <div className="info-value">{g.vigneron}</div>
-                            </div>
-                            <div className="fiche-info-item">
-                                <div className="info-label">Appellation</div>
-                                <div className="info-value">{g.appellation}</div>
-                            </div>
-                            <div className="fiche-info-item">
-                                <div className="info-label">Parts totales</div>
-                                <div className="info-value parts-value">
-                                    {g.nombre_total_parts}
-                                    <span className="parts-sub">{g.parts_pour_bouteille} / bouteille</span>
-                                </div>
-                            </div>
-                            <div className="fiche-info-item">
-                                <div className="info-label">Associés</div>
-                                <div className="info-value">
-                                    {associes.length} <span className="parts-sub">({associes.filter(a => a.actif).length} actifs)</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+  const app=el('div',{class:'gcell'});
+  app.appendChild(html('div','Appellation','lbl'));
+  app.appendChild(html('div',esc(g.appellation),'val'));
+  row.appendChild(app);
 
-                    {/* Liste des associés */}
-                    <div className="card">
-                        <div className="section-header">
-                            <h3 className="section-title">Associés</h3>
-                            <button className="btn btn-gold btn-sm-text">+ Ajouter un associé</button>
-                        </div>
-                        <div className="assoc-table-wrap">
-                            <table className="assoc-table">
-                                <thead>
-                                    <tr>
-                                        <th>Nom</th>
-                                        <th>Prénom</th>
-                                        <th>Parts</th>
-                                        <th>Adresse de livraison</th>
-                                        <th>Email</th>
-                                        <th>Téléphone</th>
-                                        <th>État</th>
-                                        <th>Statut</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {associes.map(a => (
-                                        <tr key={a.id} className={!a.actif ? 'row-inactive' : ''}>
-                                            <td className="td-bold">{a.nom}</td>
-                                            <td>{a.prenom}</td>
-                                            <td className="td-center">{a.parts}</td>
-                                            <td className="td-address">{a.adresse}</td>
-                                            <td><a href={`mailto:${a.email}`} className="td-link">{a.email}</a></td>
-                                            <td className="td-nowrap">{a.tel}</td>
-                                            <td><span className={`etat-badge etat-${a.etat}`}>{a.etat}</span></td>
-                                            <td>
-                                                <span className={`badge ${a.actif ? 'badge-success' : 'badge-warning'}`} style={{fontSize:'0.72rem',padding:'0.25rem 0.7rem'}}>
-                                                    {a.actif ? 'Actif' : 'Inactif'}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <button className="edit-icon-btn" onClick={() => setEditAssocie(a)} title="Modifier">
-                                                    ✏️
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+  const parts=el('div',{class:'gcell gcell--parts'});
+  parts.appendChild(html('div','Parts totales','lbl'));
+  parts.appendChild(html('div',
+    `<span class="val">${g.nombre_total_parts||0}</span><span class="parts-sub">${g.parts_pour_bouteille||1} / bouteille</span>`
+  ));
+  row.appendChild(parts);
 
-                    {/* Commentaires */}
-                    <div className="card">
-                        <h3 className="section-title">Commentaires</h3>
-                        <textarea
-                            className="comment-area"
-                            value={commentaire}
-                            onChange={e => setCommentaire(e.target.value)}
-                            placeholder="Ajoutez vos notes et commentaires sur ce groupement..."
-                            rows={4}
-                        />
-                        <div style={{display:'flex', alignItems:'center', gap:'1rem', marginTop:'1rem'}}>
-                            <button className="btn btn-primary btn-sm-text" onClick={saveComment}>Enregistrer</button>
-                            {saved && <span className="save-confirm">✓ Sauvegardé</span>}
-                        </div>
-                    </div>
+  const nb=el('div',{class:'gcell gcell--nb'});
+  nb.appendChild(html('div','Associés','lbl'));
+  nb.appendChild(html('div',
+    `<span class="val">${(g.associes||[]).length}</span>&nbsp;<span class="badge badge-success">Actif</span>`
+  ));
+  row.appendChild(nb);
 
-                    {/* Catalogue standard */}
-                    <div className="card">
-                        <div className="section-header">
-                            <h3 className="section-title">Catalogue standard</h3>
-                            <span className="parts-sub" style={{fontSize:'0.9rem'}}>Liste des appellations de référence du groupement</span>
-                        </div>
-                        <div className="catalogue-std-grid">
-                            {catalogueStd.map(app => (
-                                <div key={app} className="catalogue-std-tag">
-                                    <span>{app}</span>
-                                    <button className="tag-remove-btn" onClick={() => removeAppellation(app)} title="Supprimer">×</button>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="catalogue-add-row">
-                            <input
-                                className="finput catalogue-add-input"
-                                placeholder="Ajouter une appellation..."
-                                value={newAppellation}
-                                onChange={e => setNewAppellation(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && addAppellation()}
-                            />
-                            <button className="btn btn-gold btn-sm-text" onClick={addAppellation}>+ Ajouter</button>
-                        </div>
-                    </div>
+  const actions=el('div',{class:'gcell gcell--actions'});
+  actions.appendChild(el('button',{class:'btn btn-primary btn-sm',
+    onClick:()=>{ STATE.ficheId=g.id; render(); }},'Voir Détails'));
+  actions.appendChild(el('button',{class:'btn btn-success btn-sm'},'Nouvelle Campagne'));
+  row.appendChild(actions);
+  return row;
+}
 
-                    {/* Deux colonnes : Documents + Liens annuels */}
-                    <div className="two-col-grid">
-                        <div className="card">
-                            <div className="section-header">
-                                <h3 className="section-title">Documents</h3>
-                                <button className="btn btn-gold btn-sm-text">+ Ajouter</button>
-                            </div>
-                            {g.documents.length === 0
-                                ? <p className="empty-msg">Aucun document</p>
-                                : g.documents.map(d => (
-                                    <div key={d.id} className="doc-row">
-                                        <span className="doc-icon">📄</span>
-                                        <div className="doc-info">
-                                            <div className="doc-name">{d.nom}</div>
-                                            <div className="doc-date">{d.date}</div>
-                                        </div>
-                                        <a href={d.url || '#'} className="btn-link">Télécharger</a>
-                                    </div>
-                                ))
-                            }
-                        </div>
-                        <div className="card">
-                            <h3 className="section-title">Catalogues & Commandes par année</h3>
-                            <div className="annees-grid">
-                                {[...new Set([...g.catalogues.map(c=>c.annee), ...g.commandes.map(c=>c.annee)])].sort((a,b)=>b-a).map(annee => {
-                                    const cat = g.catalogues.find(c=>c.annee===annee);
-                                    const cmd = g.commandes.find(c=>c.annee===annee);
-                                    return (
-                                        <div key={annee} className="annee-row">
-                                            <div className="annee-label">{annee}</div>
-                                            <div className="annee-links">
-                                                {cat && <a href={cat.url} className="annee-link annee-link--cat">📋 {cat.label}</a>}
-                                                {cmd && <a href={cmd.url} className="annee-link annee-link--cmd">🛒 {cmd.label}</a>}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
+// ════════════════════════════════════════════════════════════════
+//  VUE FICHE GROUPEMENT
+// ════════════════════════════════════════════════════════════════
+function renderFiche(g){
+  const wrap=el('div',{class:'fiche'});
 
-        // ─── VUE ADMINISTRATION ──────────────────────────────────────────────
-        function AdminView() {
-            const [groupements, setGroupements] = useState(INITIAL_GROUPEMENTS);
-            const [showModal, setShowModal]     = useState(false);
-            const [ficheId,   setFicheId]       = useState(null);
+  // Breadcrumb
+  const bc=el('div',{class:'breadcrumb'});
+  bc.appendChild(el('button',{class:'bc-back',onClick:()=>{ STATE.ficheId=null; render(); }},'← Retour aux groupements'));
+  bc.appendChild(document.createTextNode(' / '));
+  bc.appendChild(html('span',esc(g.nom)));
+  wrap.appendChild(bc);
 
-            const ficheGroupement = ficheId !== null ? groupements.find(g=>g.id===ficheId) : null;
+  // En-tête
+  const fhead=el('div',{class:'fhead'});
+  const ftl=el('div');
+  ftl.appendChild(html('h2',esc(g.nom),'ftitle'));
+  ftl.appendChild(html('div',g.date_creation?'Créé le '+esc(g.date_creation):'','fsub'));
+  fhead.appendChild(ftl);
+  const fhr=el('div',{class:'fhead-right'});
+  fhr.appendChild(html('span',g.actif?'Actif':'Inactif','badge badge-success'));
+  fhr.appendChild(el('button',{class:'btn-del-header',
+    onClick:()=>openConfirmSupprimerGroupement(g)},'🗑 Supprimer'));
+  fhead.appendChild(fhr);
+  wrap.appendChild(fhead);
 
-            const handleSaveGroupement = (newG) => {
-                setGroupements(prev => [...prev, newG]);
-            };
+  // Infos
+  const cardInfo=el('div',{class:'card'});
+  cardInfo.appendChild(html('h3','Informations du groupement','section-title'));
+  const igrid=el('div',{class:'info-grid',style:'margin-top:1.5rem'});
+  [[g.vigneron,'Vigneron'],[g.appellation,'Appellation'],
+   [`${g.nombre_total_parts||0} <span class="parts-sub">${g.parts_pour_bouteille||1} / bouteille</span>`,'Parts totales'],
+   [`${(g.associes||[]).length} <span class="parts-sub">(${(g.associes||[]).filter(a=>a.actif).length} actifs)</span>`,'Associés']
+  ].forEach(([val,lbl])=>{
+    const it=el('div',{class:'info-item'});
+    it.appendChild(html('div',lbl,'lbl'));
+    it.appendChild(html('div',val,'val'));
+    igrid.appendChild(it);
+  });
+  cardInfo.appendChild(igrid);
+  wrap.appendChild(cardInfo);
 
-            const handleDeleteGroupement = () => {
-                setGroupements(prev => prev.filter(g => g.id !== ficheId));
-                setFicheId(null);
-            };
+  // Associés
+  wrap.appendChild(renderTableAssocies(g));
 
-            if (ficheGroupement) {
-                return (
-                    <FicheGroupement
-                        g={ficheGroupement}
-                        onBack={() => setFicheId(null)}
-                        onDelete={handleDeleteGroupement}
-                    />
-                );
-            }
+  // Commentaire
+  wrap.appendChild(renderCommentaire(g));
 
-            return (
-                <div>
-                    {showModal && (
-                        <ModalNouveauGroupement
-                            onClose={() => setShowModal(false)}
-                            onSave={handleSaveGroupement}
-                        />
-                    )}
-                    <div className="card">
-                        <div className="card-header">
-                            <h2 className="card-title">Groupements Actifs</h2>
-                            <button className="btn btn-gold" onClick={() => setShowModal(true)}>
-                                + Nouveau Groupement
-                            </button>
-                        </div>
-                        <div className="groupements-list">
-                            {groupements.map(g => (
-                                <GroupementRow
-                                    key={g.id}
-                                    g={g}
-                                    onDetail={() => setFicheId(g.id)}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            );
-        }
+  // Catalogue standard
+  wrap.appendChild(renderCatalogueStd(g));
 
-        function GroupementRow({ g, onDetail }) {
-            return (
-                <div className="groupement-row">
-                    <div className="groupement-cell groupement-cell--name">
-                        <div className="info-label">Groupement</div>
-                        <div className="groupement-nom">{g.nom}</div>
-                        <div className="groupement-date">Créé le {g.date_creation}</div>
-                    </div>
-                    <div className="groupement-cell">
-                        <div className="info-label">Vigneron</div>
-                        <div className="info-value">{g.vigneron}</div>
-                    </div>
-                    <div className="groupement-cell">
-                        <div className="info-label">Appellation</div>
-                        <div className="info-value">{g.appellation}</div>
-                    </div>
-                    <div className="groupement-cell groupement-cell--parts">
-                        <div className="info-label">Parts totales</div>
-                        <div className="info-value parts-value">
-                            {g.nombre_total_parts}
-                            <span className="parts-sub">{g.parts_pour_bouteille} / bouteille</span>
-                        </div>
-                    </div>
-                    <div className="groupement-cell groupement-cell--associes">
-                        <div className="info-label">Associés</div>
-                        <div className="info-value">
-                            {g.associes ? g.associes.length : g.nb_associes}&nbsp;
-                            <span className="badge badge-success" style={{fontSize:'0.75rem',padding:'0.3rem 0.8rem'}}>
-                                {g.actif ? 'Actif' : 'Inactif'}
-                            </span>
-                        </div>
-                    </div>
-                    <div className="groupement-cell groupement-cell--actions">
-                        <button className="btn btn-primary btn-row" onClick={onDetail}>Voir Détails</button>
-                        <button className="btn btn-success btn-row">Nouvelle Campagne</button>
-                    </div>
-                </div>
-            );
-        }
+  // Deux colonnes
+  const two=el('div',{class:'two-col'});
+  two.appendChild(renderDocuments(g));
+  two.appendChild(renderAnnees(g));
+  wrap.appendChild(two);
+  return wrap;
+}
 
-        // ─── VUE ESPACE ASSOCIÉ ──────────────────────────────────────────────
-        function AssocieView() {
-            const [cart, setCart]         = useState({});
-            const [modeRecup, setModeRecup] = useState('bernard');
-            const [alert, setAlert]       = useState(null);
-            const associe  = { prenom:"Jean", nom:"Dupont", parts:12, type_retrait:"bernard" };
-            const groupement = INITIAL_GROUPEMENTS[0];
-            const creditsTotal = (associe.parts / groupement.parts_pour_bouteille) * 22.00;
+// ── Tableau Associés ──────────────────────────────────────────
+function renderTableAssocies(g){
+  const card=el('div',{class:'card'});
+  const hdr=el('div',{class:'section-hdr'});
+  hdr.appendChild(html('h3','Associés','section-title'));
+  hdr.appendChild(el('button',{class:'btn btn-gold btn-sm',
+    onClick:()=>openModalAssocie(g, null)},'+  Ajouter un associé'));
+  card.appendChild(hdr);
 
-            const calculateUsedCredits = () =>
-                Object.entries(cart).reduce((t,[vid,qty]) => {
-                    const v = DEMO_VINS.find(v=>v.id===parseInt(vid));
-                    return t + (v ? v.prix*qty : 0);
-                }, 0);
+  const twrap=el('div',{class:'twrap'});
+  const tbl=el('table',{class:'tbl'});
+  tbl.innerHTML=`<thead><tr>
+    <th>Nom</th><th>Prénom</th><th>Parts</th><th>Adresse livraison</th>
+    <th>Email</th><th>Téléphone</th><th>État</th><th>Statut</th><th>Lien</th><th></th>
+  </tr></thead>`;
+  const tbody=el('tbody');
+  (g.associes||[]).forEach(a=>{
+    const tr=el('tr',{class:a.actif?'':'row-off'});
+    const token=a.token||'';
+    const lien=token?`${location.origin}/associe.html?token=${token}`:'';
+    tr.innerHTML=`
+      <td class="td-b">${esc(a.nom)}</td>
+      <td>${esc(a.prenom)}</td>
+      <td class="td-c">${a.parts||0}</td>
+      <td class="td-sm">${esc(a.adresse||'')}</td>
+      <td><a href="mailto:${esc(a.email)}" class="td-link">${esc(a.email||'')}</a></td>
+      <td class="td-nw">${esc(a.tel||'')}</td>
+      <td><span class="etat etat-${a.etat}">${esc(a.etat||'')}</span></td>
+      <td><span class="badge ${a.actif?'badge-success':'badge-warning'}" style="font-size:.7rem;padding:.2rem .7rem">
+        ${a.actif?'Actif':'Inactif'}</span></td>
+      <td style="min-width:280px">
+        ${lien?`
+        <div class="link-box">
+          <input class="link-input" value="${esc(lien)}" readonly id="link-${a.id}">
+          <button class="copy-btn" data-aid="${a.id}">Copier</button>
+        </div>`:'<span style="font-size:.82rem;color:#bbb;font-style:italic">—</span>'}
+      </td>
+      <td><button class="edit-btn" data-aid="${a.id}" title="Modifier">✏️</button></td>`;
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+  twrap.appendChild(tbl);
+  card.appendChild(twrap);
 
-            const changeQuantity = (vinId, delta) => {
-                const currentQty = cart[vinId] || 0;
-                const newQty = Math.max(0, currentQty + delta);
-                const vin = DEMO_VINS.find(v=>v.id===vinId);
-                const used = calculateUsedCredits();
-                if (used + (newQty-currentQty)*vin.prix > creditsTotal) {
-                    setAlert({msg:"Crédits insuffisants", type:"warning"});
-                    setTimeout(()=>setAlert(null),3000); return;
-                }
-                if (vin.stock && newQty > vin.stock) {
-                    setAlert({msg:"Stock limité atteint", type:"warning"});
-                    setTimeout(()=>setAlert(null),3000); return;
-                }
-                setCart(c => { const n={...c}; if(newQty===0) delete n[vinId]; else n[vinId]=newQty; return n; });
-            };
+  // Events sur les boutons du tableau
+  card.querySelectorAll('.edit-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const a=(g.associes||[]).find(x=>x.id===btn.dataset.aid);
+      if(a) openModalAssocie(g,a);
+    });
+  });
+  card.querySelectorAll('.copy-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const inp=$(`link-${btn.dataset.aid}`);
+      if(inp){ inp.select(); navigator.clipboard.writeText(inp.value); toast('Lien copié !'); }
+    });
+  });
+  return card;
+}
 
-            const saveOrder = (validate) => {
-                const used = calculateUsedCredits();
-                if (used===0) { setAlert({msg:"Sélectionnez au moins une bouteille",type:"warning"}); setTimeout(()=>setAlert(null),3000); return; }
-                setAlert({ msg: validate ? "✓ Commande validée ! Un email de confirmation vous sera envoyé." : "💾 Brouillon sauvegardé.", type:"success" });
-                setTimeout(()=>setAlert(null),4000);
-            };
+// ── Commentaire ───────────────────────────────────────────────
+function renderCommentaire(g){
+  const card=el('div',{class:'card'});
+  card.appendChild(html('h3','Commentaires','section-title'));
+  const ta=el('textarea',{class:'comment-area',rows:'4',
+    placeholder:'Ajoutez vos notes et commentaires sur ce groupement…'});
+  ta.value=g.commentaire||'';
+  card.appendChild(ta);
+  const row=el('div',{style:'display:flex;align-items:center;gap:1rem;margin-top:1rem'});
+  const ok=html('span','','save-ok');
+  const btn=el('button',{class:'btn btn-primary btn-sm',onClick:async()=>{
+    g.commentaire=ta.value;
+    await window.GFA.saveGroupement(g);
+    ok.textContent='✓ Sauvegardé'; setTimeout(()=>ok.textContent='',2500);
+  }},'Enregistrer');
+  row.appendChild(btn); row.appendChild(ok);
+  card.appendChild(row);
+  return card;
+}
 
-            const used      = calculateUsedCredits();
-            const remaining = creditsTotal - used;
+// ── Catalogue standard ────────────────────────────────────────
+function renderCatalogueStd(g){
+  if(!g.catalogue_std) g.catalogue_std=[...CATALOGUE_STD_DEFAULT];
+  const card=el('div',{class:'card'});
+  const hdr=el('div',{class:'section-hdr'});
+  hdr.appendChild(html('h3','Catalogue standard','section-title'));
+  hdr.appendChild(html('span','Liste des appellations de référence','parts-sub'));
+  card.appendChild(hdr);
 
-            return (
-                <div>
-                    {alert && <div className={`alert alert-${alert.type}`}>{alert.msg}</div>}
-                    <div className="card">
-                        <h2 className="card-title">Vos Informations</h2>
-                        <div className="info-grid">
-                            <div className="info-item"><div className="info-label">Nom</div><div className="info-value">{associe.prenom} {associe.nom}</div></div>
-                            <div className="info-item"><div className="info-label">Groupement</div><div className="info-value">{groupement.nom}</div></div>
-                            <div className="info-item"><div className="info-label">Vigneron</div><div className="info-value">{groupement.vigneron}</div></div>
-                            <div className="info-item"><div className="info-label">Vos parts</div><div className="info-value">{associe.parts} parts</div></div>
-                            <div className="info-item"><div className="info-label">Campagne</div><div className="info-value">2024</div></div>
-                        </div>
-                    </div>
-                    <div className="credits-banner">
-                        <div className="credits-amount">{creditsTotal.toFixed(2)} €</div>
-                        <div className="credits-label">Crédits disponibles</div>
-                        <div className="credits-remaining">Crédits restants : <strong>{remaining.toFixed(2)} €</strong></div>
-                    </div>
-                    <div className="card">
-                        <h2 className="card-title">Catalogue des Vins 2024</h2>
-                        <div className="wine-grid">
-                            {DEMO_VINS.map(vin => (
-                                <div key={vin.id} className={`wine-card ${cart[vin.id] ? 'selected' : ''}`}>
-                                    <h3 className="wine-name">{vin.nom}</h3>
-                                    <p className="wine-description">{vin.description}</p>
-                                    <div className="wine-price">{vin.prix.toFixed(2)}<span className="wine-price-currency">€</span></div>
-                                    {vin.stock && <div style={{fontSize:'0.9rem',color:'var(--terracotta)',marginTop:'0.5rem'}}>Stock limité : {vin.stock} bouteilles</div>}
-                                    <div className="quantity-control">
-                                        <button className="quantity-btn" onClick={()=>changeQuantity(vin.id,-1)}>−</button>
-                                        <div className="quantity-display">{cart[vin.id]||0}</div>
-                                        <button className="quantity-btn" onClick={()=>changeQuantity(vin.id,1)}>+</button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    {Object.keys(cart).length > 0 && (
-                        <div className="summary">
-                            <h3 className="summary-title">Récapitulatif</h3>
-                            {Object.entries(cart).map(([vid,qty]) => {
-                                const v = DEMO_VINS.find(v=>v.id===parseInt(vid));
-                                return <div key={vid} className="summary-item"><span>{v.nom} × {qty}</span><span>{(v.prix*qty).toFixed(2)} €</span></div>;
-                            })}
-                            <div className="summary-item"><span>TOTAL</span><span>{used.toFixed(2)} € / {creditsTotal.toFixed(2)} €</span></div>
-                        </div>
-                    )}
-                    <div className="form-group">
-                        <label className="form-label">Mode de récupération</label>
-                        <select value={modeRecup} onChange={e=>setModeRecup(e.target.value)}>
-                            <option value="bernard">Bernard</option>
-                            <option value="vigneron">Vigneron</option>
-                        </select>
-                    </div>
-                    <div className="actions-bar">
-                        <button className="btn btn-primary" onClick={()=>saveOrder(false)}>💾 Sauvegarder en Brouillon</button>
-                        <button className="btn btn-success" onClick={()=>saveOrder(true)}>✓ Valider ma Commande</button>
-                    </div>
-                </div>
-            );
-        }
+  const tags=el('div',{class:'cat-tags'}); card.appendChild(tags);
+  const renderTags=()=>{
+    tags.innerHTML='';
+    (g.catalogue_std||[]).forEach(app=>{
+      const t=el('div',{class:'ctag'});
+      t.appendChild(document.createTextNode(app));
+      const rm=el('button',{class:'ctag-rm',title:'Retirer',onClick:async()=>{
+        g.catalogue_std=g.catalogue_std.filter(x=>x!==app);
+        await window.GFA.saveGroupement(g);
+        renderTags();
+      }},'×');
+      t.appendChild(rm); tags.appendChild(t);
+    });
+  };
+  renderTags();
 
-        // ─── APP RACINE ──────────────────────────────────────────────────────
-        function App() {
-            const [activeTab, setActiveTab] = useState('admin');
-            return (
-                <div className="app-container">
-                    <header className="header">
-                        <div className="header-content">
-                            <h1 className="logo"><span className="logo-accent">GFA</span> Manager</h1>
-                            <div className="decorative-line"></div>
-                            <p className="tagline">Gestion des Groupements Fonciers Agricoles</p>
-                        </div>
-                    </header>
-                    <nav className="nav-container">
-                        <div className="nav">
-                            <button className={`nav-btn ${activeTab==='admin'?'active':''}`} onClick={()=>setActiveTab('admin')}>Administration</button>
-                            <button className={`nav-btn ${activeTab==='espace-associe'?'active':''}`} onClick={()=>setActiveTab('espace-associe')}>Espace Associé</button>
-                        </div>
-                    </nav>
-                    <main className="main-content">
-                        {activeTab==='admin'         && <AdminView />}
-                        {activeTab==='espace-associe' && <AssocieView />}
-                    </main>
-                </div>
-            );
-        }
+  const addRow=el('div',{class:'cat-add'});
+  const inp=el('input',{class:'finput',placeholder:'Ajouter une appellation…'});
+  const btn=el('button',{class:'btn btn-gold btn-sm',onClick:async()=>{
+    const v=inp.value.trim();
+    if(v&&!(g.catalogue_std||[]).includes(v)){
+      if(!g.catalogue_std) g.catalogue_std=[];
+      g.catalogue_std.push(v);
+      await window.GFA.saveGroupement(g);
+      inp.value=''; renderTags();
+    }
+  }},'+  Ajouter');
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') btn.click(); });
+  addRow.appendChild(inp); addRow.appendChild(btn);
+  card.appendChild(addRow);
+  return card;
+}
 
-        ReactDOM.render(<App />, document.getElementById('root'));
-    </script>
+// ── Documents ─────────────────────────────────────────────────
+function renderDocuments(g){
+  const card=el('div',{class:'card'});
+  const hdr=el('div',{class:'section-hdr'});
+  hdr.appendChild(html('h3','Documents','section-title'));
+  hdr.appendChild(el('button',{class:'btn btn-gold btn-sm'},'+ Ajouter'));
+  card.appendChild(hdr);
+  (g.documents||[]).forEach(d=>{
+    const row=el('div',{class:'doc-row'});
+    row.appendChild(html('span','📄','doc-icon'));
+    const info=el('div',{class:'doc-info'});
+    info.appendChild(html('div',esc(d.nom),'doc-name'));
+    info.appendChild(html('div',esc(d.date||''),'doc-date'));
+    row.appendChild(info);
+    row.appendChild(el('a',{href:d.url||'#',class:'btn-link',target:'_blank'},'Télécharger'));
+    card.appendChild(row);
+  });
+  if(!(g.documents||[]).length) card.appendChild(html('p','Aucun document','empty'));
+  return card;
+}
+
+// ── Années ───────────────────────────────────────────────────
+function renderAnnees(g){
+  const card=el('div',{class:'card'});
+  card.appendChild(html('h3','Catalogues & Commandes par année','section-title'));
+  const cats=g.catalogues||[], cmds=g.commandes||[];
+  const annees=[...new Set([...cats.map(x=>x.annee),...cmds.map(x=>x.annee)])].sort((a,b)=>b-a);
+  if(!annees.length){ card.appendChild(html('p','Aucune année','empty')); return card; }
+  annees.forEach(annee=>{
+    const row=el('div',{class:'annee-row'});
+    row.appendChild(html('div',String(annee),'annee-lbl'));
+    const links=el('div',{class:'annee-links'});
+    const cat=cats.find(x=>x.annee===annee);
+    const cmd=cmds.find(x=>x.annee===annee);
+    if(cat) links.appendChild(el('a',{href:cat.url,class:'alink alink-cat',target:'_blank'},'📋 '+cat.label));
+    if(cmd) links.appendChild(el('a',{href:cmd.url,class:'alink alink-cmd',target:'_blank'},'🛒 '+cmd.label));
+    row.appendChild(links); card.appendChild(row);
+  });
+  return card;
+}
+
+// ── Vue tous les associés ─────────────────────────────────────
+function renderAllAssocies(){
+  const wrap=el('div');
+  STATE.groupements.forEach(g=>{
+    const card=el('div',{class:'card'});
+    card.appendChild(html('h3',esc(g.nom),'section-title'));
+    card.appendChild(renderTableAssocies(g));
+    wrap.appendChild(card);
+  });
+  if(!STATE.groupements.length) wrap.appendChild(html('p','Aucun groupement','empty'));
+  return wrap;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  MODAL — NOUVEAU / MODIFIER GROUPEMENT
+// ════════════════════════════════════════════════════════════════
+function openModalGroupement(g=null){
+  const isEdit=!!g;
+  const box=el('div',{class:'mbox'});
+  box.innerHTML=`
+    <div class="mhead">
+      <span class="mtitle">${isEdit?'Modifier le groupement':'Nouveau Groupement'}</span>
+      <button class="mclose">✕</button>
+    </div>
+    <div class="mbody">
+      <div class="form2">
+        <div class="fg"><label class="flbl">Nom *</label>
+          <input class="finput" id="mg-nom" value="${esc(g?.nom||'')}" placeholder="ex. Les Vignerons du Clos"></div>
+        <div class="fg"><label class="flbl">Vigneron *</label>
+          <input class="finput" id="mg-vig" value="${esc(g?.vigneron||'')}" placeholder="ex. Domaine Loic Durand"></div>
+      </div>
+      <div class="form2">
+        <div class="fg"><label class="flbl">Appellation *</label>
+          <input class="finput" id="mg-app" value="${esc(g?.appellation||'')}" placeholder="ex. Haute Côte de Beaune"></div>
+        <div class="fg"><label class="flbl">Date de création</label>
+          <input class="finput" id="mg-date" value="${esc(g?.date_creation||'')}" placeholder="ex. 15 janvier 2024"></div>
+      </div>
+      <div class="form2">
+        <div class="fg"><label class="flbl">Nombre total de parts *</label>
+          <input class="finput" id="mg-parts" type="number" value="${g?.nombre_total_parts||''}" placeholder="120"></div>
+        <div class="fg"><label class="flbl">Parts par bouteille *</label>
+          <input class="finput" id="mg-ppb" type="number" value="${g?.parts_pour_bouteille||''}" placeholder="3"></div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-secondary" id="mg-cancel">Annuler</button>
+      <button class="btn btn-gold" id="mg-save">${isEdit?'Enregistrer':'Créer le groupement'}</button>
+    </div>`;
+  box.querySelector('.mclose').onclick=closeModal;
+  box.querySelector('#mg-cancel').onclick=closeModal;
+  box.querySelector('#mg-save').onclick=async()=>{
+    const nom=box.querySelector('#mg-nom').value.trim();
+    const vig=box.querySelector('#mg-vig').value.trim();
+    const app=box.querySelector('#mg-app').value.trim();
+    if(!nom||!vig||!app){ toast('Nom, vigneron et appellation requis.', true); return; }
+    const data={ ...(g||{}), nom, vigneron:vig, appellation:app,
+      date_creation:box.querySelector('#mg-date').value.trim(),
+      nombre_total_parts:parseInt(box.querySelector('#mg-parts').value)||0,
+      parts_pour_bouteille:parseInt(box.querySelector('#mg-ppb').value)||1,
+      actif:true, documents:g?.documents||[], catalogues:g?.catalogues||[],
+      commandes:g?.commandes||[], commentaire:g?.commentaire||'',
+      catalogue_std:g?.catalogue_std||[...CATALOGUE_STD_DEFAULT] };
+    const id=await window.GFA.saveGroupement(data);
+    if(!data.id) data.id=id;
+    closeModal(); await loadAll();
+    toast(isEdit?'Groupement mis à jour.':'Groupement créé.');
+  };
+  openModal(box);
+}
+
+// ════════════════════════════════════════════════════════════════
+//  MODAL — CONFIRM SUPPRESSION GROUPEMENT
+// ════════════════════════════════════════════════════════════════
+function openConfirmSupprimerGroupement(g){
+  const box=el('div',{class:'mbox mbox--sm'});
+  box.innerHTML=`
+    <div class="mhead mhead--danger">
+      <span class="mtitle">Supprimer le groupement</span>
+      <button class="mclose">✕</button>
+    </div>
+    <div class="mbody">
+      <div class="danger-icon">⚠️</div>
+      <p class="danger-msg">Vous êtes sur le point de supprimer<br><strong>« ${esc(g.nom)} »</strong></p>
+      <p class="danger-sub">Cette action est irréversible. Toutes les données seront perdues : associés, documents, catalogues et historique des commandes.</p>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-secondary" id="ds-cancel">Annuler</button>
+      <button class="btn btn-danger-confirm" id="ds-ok">Confirmer la suppression</button>
+    </div>`;
+  box.querySelector('.mclose').onclick=closeModal;
+  box.querySelector('#ds-cancel').onclick=closeModal;
+  box.querySelector('#ds-ok').onclick=async()=>{
+    await window.GFA.deleteGroupement(g.id);
+    STATE.ficheId=null; closeModal(); await loadAll();
+    toast('Groupement supprimé.');
+  };
+  openModal(box);
+}
+
+// ════════════════════════════════════════════════════════════════
+//  MODAL — NOUVEAU / MODIFIER ASSOCIÉ
+// ════════════════════════════════════════════════════════════════
+function openModalAssocie(g, a=null){
+  const isEdit=!!a;
+  const box=el('div',{class:'mbox'});
+  box.innerHTML=`
+    <div class="mhead">
+      <span class="mtitle">${isEdit?'Modifier l\'associé':'Nouvel Associé'}</span>
+      <button class="mclose">✕</button>
+    </div>
+    <div class="mbody">
+      <div class="form2">
+        <div class="fg"><label class="flbl">Nom *</label>
+          <input class="finput" id="ma-nom" value="${esc(a?.nom||'')}"></div>
+        <div class="fg"><label class="flbl">Prénom *</label>
+          <input class="finput" id="ma-prenom" value="${esc(a?.prenom||'')}"></div>
+      </div>
+      <div class="form2">
+        <div class="fg"><label class="flbl">Nombre de parts *</label>
+          <input class="finput" id="ma-parts" type="number" value="${a?.parts||''}"></div>
+        <div class="fg"><label class="flbl">Téléphone</label>
+          <input class="finput" id="ma-tel" value="${esc(a?.tel||'')}"></div>
+      </div>
+      <div class="fg"><label class="flbl">Adresse de livraison</label>
+        <input class="finput" id="ma-adresse" value="${esc(a?.adresse||'')}"></div>
+      <div class="fg"><label class="flbl">Email *</label>
+        <input class="finput" id="ma-email" type="email" value="${esc(a?.email||'')}"></div>
+      <div class="form2">
+        <div class="fg"><label class="flbl">État</label>
+          <select class="finput" id="ma-etat">
+            <option value="bernard" ${(a?.etat||'bernard')==='bernard'?'selected':''}>Bernard</option>
+            <option value="vigneron" ${a?.etat==='vigneron'?'selected':''}>Vigneron</option>
+          </select></div>
+        <div class="fg"><label class="flbl">Statut</label>
+          <select class="finput" id="ma-actif">
+            <option value="1" ${a?.actif!==false?'selected':''}>Actif</option>
+            <option value="0" ${a?.actif===false?'selected':''}>Inactif</option>
+          </select></div>
+      </div>
+      <div id="ma-confirm-del"></div>
+    </div>
+    <div class="mfoot ${isEdit?'mfoot--between':''}">
+      ${isEdit?`<button class="btn-del-outline" id="ma-del">🗑 Supprimer</button>`:''}
+      <div style="display:flex;gap:1rem">
+        <button class="btn btn-secondary" id="ma-cancel">Annuler</button>
+        <button class="btn btn-gold" id="ma-save">Enregistrer</button>
+      </div>
+    </div>`;
+  box.querySelector('.mclose').onclick=closeModal;
+  box.querySelector('#ma-cancel').onclick=closeModal;
+
+  if(isEdit){
+    box.querySelector('#ma-del').onclick=()=>{
+      const cd=box.querySelector('#ma-confirm-del');
+      cd.innerHTML=`<div class="confirm-box">
+        <p>Confirmer la suppression de <strong>${esc(a.prenom)} ${esc(a.nom)}</strong> ?</p>
+        <div style="display:flex;gap:.8rem;margin-top:.8rem">
+          <button class="btn btn-danger-confirm btn-sm" id="ma-del-ok">Oui, supprimer</button>
+          <button class="btn btn-secondary btn-sm" id="ma-del-no">Annuler</button>
+        </div></div>`;
+      cd.querySelector('#ma-del-ok').onclick=async()=>{
+        await window.GFA.deleteAssocie(g.id, a.id);
+        g.associes=g.associes.filter(x=>x.id!==a.id);
+        closeModal(); render(); toast('Associé supprimé.');
+      };
+      cd.querySelector('#ma-del-no').onclick=()=>{ cd.innerHTML=''; };
+    };
+  }
+
+  box.querySelector('#ma-save').onclick=async()=>{
+    const nom=box.querySelector('#ma-nom').value.trim();
+    const prenom=box.querySelector('#ma-prenom').value.trim();
+    const email=box.querySelector('#ma-email').value.trim();
+    if(!nom||!prenom||!email){ toast('Nom, prénom et email requis.', true); return; }
+    const token=a?.token||window.GFA.genToken();
+    const data={
+      ...(a||{}), nom, prenom, email,
+      parts:parseInt(box.querySelector('#ma-parts').value)||0,
+      tel:box.querySelector('#ma-tel').value.trim(),
+      adresse:box.querySelector('#ma-adresse').value.trim(),
+      etat:box.querySelector('#ma-etat').value,
+      actif:box.querySelector('#ma-actif').value==='1',
+      token, groupement_id:g.id
+    };
+    const newId=await window.GFA.saveAssocie(g.id, data);
+    if(!data.id) data.id=newId;
+    if(!g.associes) g.associes=[];
+    const idx=g.associes.findIndex(x=>x.id===data.id);
+    if(idx>=0) g.associes[idx]=data; else g.associes.push(data);
+    closeModal(); render();
+    toast(isEdit?'Associé mis à jour.':'Associé créé. Le lien est disponible dans le tableau.');
+  };
+  openModal(box);
+}
+
+// ════════════════════════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════════════════════════
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
 </body>
 </html>
