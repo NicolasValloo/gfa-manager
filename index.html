@@ -1057,88 +1057,193 @@ function openModalAssocie(g, a=null){
 }
 
 // ════════════════════════════════════════════════════════════════
-//  MODAL — NOUVELLE CAMPAGNE
+//  MODAL — NOUVELLE CAMPAGNE avec catalogue standard + prix
 // ════════════════════════════════════════════════════════════════
 function openModalNouvelleCampagne(g) {
   const box = el('div', {class:'mbox'});
   const anneeActuelle = new Date().getFullYear();
   const associesActifs = (g.associes||[]).filter(a=>a.actif&&a.email&&a.token);
+  const catalogue = g.catalogue_std || [];
 
   box.innerHTML = `
     <div class="mhead">
-      <span class="mtitle">Nouvelle Campagne</span>
+      <span class="mtitle">Nouvelle Campagne — ${esc(g.nom)}</span>
       <button class="mclose">✕</button>
     </div>
     <div class="mbody">
       <div class="form2">
         <div class="fg"><label class="flbl">Année *</label>
-          <input class="finput" id="nc-annee" type="number" value="${anneeActuelle}"></div>
+          <input class="finput" id="nc-annee" type="number" value="${anneeActuelle}" required></div>
         <div class="fg"><label class="flbl">Date de clôture</label>
           <input class="finput" id="nc-fin" placeholder="ex. 15 mars ${anneeActuelle}"></div>
       </div>
       <div class="fg"><label class="flbl">Prix de référence par bouteille (€)</label>
-        <input class="finput" id="nc-prix" type="number" step="0.01" value="${g.prix_bouteille_reference||''}"></div>
-      <div style="margin-top:1.2rem">
+        <input class="finput" id="nc-prix-ref" type="number" step="0.01" value="${g.prix_bouteille_reference||''}" placeholder="ex. 12.50"></div>
+      
+      <div style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid rgba(107,30,60,.1)">
+        <div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:700;color:var(--burg);margin-bottom:.8rem">
+          Catalogue des vins
+        </div>
+        ${!catalogue.length ? `
+          <p style="color:#aaa;font-style:italic;font-size:.9rem;margin-bottom:1rem">
+            Aucune appellation dans le catalogue standard. Ajoutez-en dans la fiche du groupement, puis recréez la campagne.
+          </p>
+        ` : `
+          <div style="font-size:.88rem;color:#777;margin-bottom:1rem">
+            Indiquez le prix pour chaque appellation. Laissez vide pour ne pas inclure ce vin dans la campagne.
+          </div>
+          <div style="display:grid;gap:.8rem;max-height:300px;overflow-y:auto;padding-right:.5rem">
+            ${catalogue.map((app,i)=>`
+              <div style="display:flex;align-items:center;gap:.8rem;padding:.7rem;background:rgba(248,245,239,.6);border-radius:2px">
+                <div style="flex:1.5;font-weight:600;color:var(--dark)">${esc(app)}</div>
+                <div style="flex:1;display:flex;align-items:center;gap:.5rem">
+                  <input class="finput vin-prix" data-nom="${esc(app)}" type="number" step="0.01" 
+                    placeholder="Prix €" style="margin:0;flex:1">
+                  <input class="finput vin-stock" type="number" placeholder="Stock" 
+                    style="margin:0;width:90px" title="Stock limité (laisser vide = illimité)">
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `}
+      </div>
+
+      <div style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid rgba(107,30,60,.1)">
         <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;color:var(--burg);margin-bottom:.8rem">
           Notifier les associés (${associesActifs.length})
         </div>
         <div style="font-size:.88rem;color:#777;margin-bottom:.8rem">
           Cliquez sur chaque associé pour ouvrir un email pré-rempli avec son lien personnel.
         </div>
-        <div id="nc-assoc-list" style="display:flex;flex-direction:column;gap:.5rem;max-height:240px;overflow-y:auto">
+        <div id="nc-assoc-list" style="display:flex;flex-direction:column;gap:.5rem;max-height:200px;overflow-y:auto">
           ${associesActifs.map(a=>`
             <div style="display:flex;align-items:center;justify-content:space-between;
-              padding:.7rem 1rem;border:1px solid rgba(107,30,60,.12);border-radius:3px;
+              padding:.6rem 1rem;border:1px solid rgba(107,30,60,.12);border-radius:3px;
               background:rgba(248,245,239,.6)">
-              <span style="font-size:.95rem"><strong>${esc(a.prenom)} ${esc(a.nom)}</strong>
-                <span style="color:#999;font-size:.85rem;margin-left:.5rem">${esc(a.email)}</span>
+              <span style="font-size:.9rem"><strong>${esc(a.prenom)} ${esc(a.nom)}</strong>
+                <span style="color:#999;font-size:.82rem;margin-left:.5rem">${esc(a.email)}</span>
               </span>
-              <button class="nc-mail-btn btn btn-gold btn-sm"
-                data-aid="${a.id}" style="flex-shrink:0">
+              <button class="nc-mail-btn btn btn-gold btn-sm" data-aid="${a.id}" style="flex-shrink:0">
                 ✉️ Envoyer
               </button>
             </div>`).join('')}
-          ${!associesActifs.length ? '<p style="color:#aaa;font-style:italic;font-size:.9rem">Aucun associé actif avec email et lien.</p>' : ''}
+          ${!associesActifs.length ? '<p style="color:#aaa;font-style:italic;font-size:.85rem">Aucun associé actif.</p>' : ''}
         </div>
       </div>
     </div>
     <div class="mfoot" style="justify-content:space-between">
-      <button class="btn btn-secondary" id="nc-cancel">Fermer</button>
-      ${associesActifs.length > 1 ? `<button class="btn btn-primary" id="nc-all">✉️ Envoyer à tous (${associesActifs.length})</button>` : ''}
+      <button class="btn btn-secondary" id="nc-cancel">Annuler</button>
+      <div style="display:flex;gap:.8rem">
+        ${associesActifs.length > 1 ? `<button class="btn btn-primary" id="nc-all">✉️ Envoyer à tous</button>` : ''}
+        <button class="btn btn-gold" id="nc-create">Créer la campagne</button>
+      </div>
     </div>`;
 
   box.querySelector('.mclose').onclick = closeModal;
   box.querySelector('#nc-cancel').onclick = closeModal;
 
-  // Sauvegarde prix si modifié, puis ouvre le mail
-  const savePrix = async () => {
-    const prix = parseFloat(box.querySelector('#nc-prix').value) || 0;
-    const fin  = box.querySelector('#nc-fin').value.trim();
-    const annee = parseInt(box.querySelector('#nc-annee').value) || anneeActuelle;
-    if (prix && prix !== g.prix_bouteille_reference) {
-      g.prix_bouteille_reference = prix;
-      await window.GFA.saveGroupement(g);
+  // Bouton créer campagne
+  box.querySelector('#nc-create').onclick = async () => {
+    const annee   = parseInt(box.querySelector('#nc-annee').value) || anneeActuelle;
+    const fin     = box.querySelector('#nc-fin').value.trim();
+    const prixRef = parseFloat(box.querySelector('#nc-prix-ref').value) || null;
+    const createBtn = box.querySelector('#nc-create');
+    
+    // Collecter les vins avec prix
+    const vins = [];
+    box.querySelectorAll('.vin-prix').forEach(inp => {
+      const prix  = parseFloat(inp.value);
+      const nom   = inp.dataset.nom;
+      const stock = inp.nextElementSibling?.value ? parseInt(inp.nextElementSibling.value) : null;
+      if (prix && prix > 0) {
+        vins.push({ nom, prix, stock, description: '' });
+      }
+    });
+
+    if (vins.length === 0) {
+      toast('Veuillez indiquer au moins un prix pour créer la campagne.', true);
+      return;
     }
-    return { annee, fin, prix };
+
+    createBtn.textContent = 'Création en cours…';
+    createBtn.disabled = true;
+
+    try {
+      const { db } = window.GFA;
+      const { collection, doc, setDoc, addDoc, getDocs, updateDoc, query, where } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+
+      // 1. Sauvegarder prix de référence si fourni
+      if (prixRef) {
+        g.prix_bouteille_reference = prixRef;
+        await window.GFA.saveGroupement(g);
+      }
+
+      // 2. Créer la campagne
+      const campagneRef = doc(collection(db, 'groupements', g.id, 'campagnes'));
+      await setDoc(campagneRef, {
+        annee,
+        actif: true,
+        date_fin: fin,
+        prix_bouteille_reference: prixRef,
+        cree_le: new Date().toISOString()
+      });
+
+      // Désactiver les autres campagnes actives du groupement
+      const autresCampagnes = await getDocs(
+        query(collection(db, 'groupements', g.id, 'campagnes'), where('actif', '==', true))
+      );
+      for (const campDoc of autresCampagnes.docs) {
+        if (campDoc.id !== campagneRef.id) {
+          await updateDoc(doc(db, 'groupements', g.id, 'campagnes', campDoc.id), { actif: false });
+        }
+      }
+
+      // 3. Créer les vins dans la sous-collection
+      for (const vin of vins) {
+        await addDoc(collection(db, 'groupements', g.id, 'campagnes', campagneRef.id, 'vins'), {
+          nom: vin.nom,
+          prix: vin.prix,
+          stock: vin.stock,
+          description: vin.description
+        });
+      }
+
+      closeModal();
+      toast(`Campagne ${annee} créée avec ${vins.length} vin${vins.length>1?'s':''}.`);
+      
+      // Recharger pour afficher la nouvelle campagne
+      setTimeout(() => location.reload(), 1500);
+
+    } catch(err) {
+      console.error(err);
+      toast('Erreur lors de la création. Vérifiez la console.', true);
+      createBtn.textContent = 'Créer la campagne';
+      createBtn.disabled = false;
+    }
   };
 
-  // Boutons individuels
-  box.querySelectorAll('.nc-mail-btn').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const { annee, fin } = await savePrix();
-      const a = associesActifs.find(x=>x.id===btn.dataset.aid);
-      if(a) window.MAIL.ouvrirMailCampagne(a, g, annee, fin);
+  // Boutons email individuels
+  box.querySelectorAll('.nc-mail-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const a = associesActifs.find(x => x.id === btn.dataset.aid);
+      if (!a) return;
+      const annee = parseInt(box.querySelector('#nc-annee').value) || anneeActuelle;
+      const fin   = box.querySelector('#nc-fin').value.trim();
+      window.MAIL.ouvrirMailCampagne(a, g, annee, fin);
     });
   });
 
-  // Bouton "envoyer à tous" — ouvre les mails un par un avec délai
+  // Bouton "envoyer à tous"
   const btnAll = box.querySelector('#nc-all');
-  if(btnAll) {
-    btnAll.addEventListener('click', async ()=>{
-      const { annee, fin } = await savePrix();
-      btnAll.textContent = 'Ouverture des emails…'; btnAll.disabled = true;
-      for(let i=0; i<associesActifs.length; i++) {
-        const a = associesActifs[i];
+  if (btnAll) {
+    btnAll.addEventListener('click', async () => {
+      const annee = parseInt(box.querySelector('#nc-annee').value) || anneeActuelle;
+      const fin   = box.querySelector('#nc-fin').value.trim();
+      btnAll.textContent = 'Ouverture des emails…';
+      btnAll.disabled = true;
+      
+      for (let i = 0; i < associesActifs.length; i++) {
+        const a     = associesActifs[i];
         const lien  = `${location.origin}/associe.html?token=${a.token}`;
         const ppb   = g.parts_pour_bouteille || 1;
         const prix  = g.prix_bouteille_reference || 0;
@@ -1155,11 +1260,10 @@ Votre espace de commande :
 ${lien}
 
 Cordialement`);
-        // Ouvrir dans un nouvel onglet pour ne pas quitter la page
         window.open(`mailto:${a.email}?subject=${sujet}&body=${corps}`, '_blank');
-        // Petite pause entre chaque pour éviter le blocage du navigateur
-        await new Promise(r=>setTimeout(r,600));
+        await new Promise(r => setTimeout(r, 600));
       }
+      
       btnAll.textContent = `✓ ${associesActifs.length} email(s) préparés`;
     });
   }
