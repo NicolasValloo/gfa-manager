@@ -123,9 +123,72 @@ window.GFA = { auth, db, getGroupements, saveGroupement, deleteGroupement,
                saveAssocie, deleteAssocie, getAssocies, genToken,
                signInWithEmailAndPassword, onAuthStateChanged, signOut };
 
+// ── Helpers DOM ──────────────────────────────────────────
+function $(id){ return document.getElementById(id); }
+
 // ── Amorcer l'app dès que Firebase est prêt ───────────────
 onAuthStateChanged(auth, (user) => {
   document.dispatchEvent(new CustomEvent('gfa:authchange', { detail: user }));
+});
+
+// ── Attacher les listeners une fois le DOM prêt ──────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Listener changement d'état auth
+  document.addEventListener('gfa:authchange', e => {
+    const user = e.detail;
+    if(user){
+      $('login-screen').style.display='none';
+      $('app').style.display='block';
+      // loadAll() sera appelé depuis le script principal
+      if(window.loadAll) window.loadAll();
+    } else {
+      $('login-screen').style.display='flex';
+      $('app').style.display='none';
+    }
+  });
+
+  // Bouton connexion
+  const btnLogin = $('l-btn');
+  if(btnLogin) {
+    btnLogin.addEventListener('click', async () => {
+      const email=$('l-email').value.trim(), pwd=$('l-pwd').value;
+      if(!email||!pwd) return;
+      btnLogin.textContent='Connexion…'; btnLogin.disabled=true;
+      try {
+        await signInWithEmailAndPassword(auth, email, pwd);
+      } catch(err){
+        console.error('Erreur de connexion:', err);
+        $('login-err').textContent='Email ou mot de passe incorrect.';
+        $('login-err').style.display='block';
+      }
+      btnLogin.textContent='Se connecter'; btnLogin.disabled=false;
+    });
+  }
+
+  // Enter sur le champ password
+  const pwdField = $('l-pwd');
+  if(pwdField) {
+    pwdField.addEventListener('keydown', e=>{ if(e.key==='Enter') btnLogin?.click(); });
+  }
+
+  // Bouton déconnexion
+  const btnLogout = $('logout-btn');
+  if(btnLogout) {
+    btnLogout.addEventListener('click', () => signOut(auth));
+  }
+
+  // Navigation tabs
+  document.querySelectorAll('.nav-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      if(window.STATE) {
+        window.STATE.activeTab=btn.dataset.tab;
+        window.STATE.ficheId=null;
+      }
+      if(window.render) window.render();
+    });
+  });
 });
 </script>
 
@@ -449,6 +512,9 @@ const STATE = {
   activeTab: 'admin',
 };
 
+// Exposer pour le module Firebase
+window.STATE = STATE;
+
 const CATALOGUE_STD_DEFAULT = [
   "Bourgogne Aligoté","Bourgogne Chardonnay","Bourgogne Pinot Noir",
   "Haute Côte de Beaune Rouge","Haute Côte de Beaune Blanc",
@@ -487,56 +553,6 @@ function openModal(content){
 function closeModal(){ $('modals').innerHTML=''; }
 
 // ════════════════════════════════════════════════════════════════
-//  AUTH
-// ════════════════════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
-  // Listener changement d'état auth
-  document.addEventListener('gfa:authchange', e => {
-    STATE.user = e.detail;
-    if(STATE.user){
-      $('login-screen').style.display='none';
-      $('app').style.display='block';
-      loadAll();
-    } else {
-      $('login-screen').style.display='flex';
-      $('app').style.display='none';
-    }
-  });
-
-  // Bouton connexion
-  $('l-btn').addEventListener('click', async () => {
-    const email=$('l-email').value.trim(), pwd=$('l-pwd').value;
-    if(!email||!pwd) return;
-    $('l-btn').textContent='Connexion…'; $('l-btn').disabled=true;
-    try {
-      await window.GFA.signInWithEmailAndPassword(window.GFA.auth, email, pwd);
-    } catch(err){
-      console.error('Erreur de connexion:', err);
-      $('login-err').textContent='Email ou mot de passe incorrect.';
-      $('login-err').style.display='block';
-    }
-    $('l-btn').textContent='Se connecter'; $('l-btn').disabled=false;
-  });
-
-  // Enter sur le champ password
-  $('l-pwd').addEventListener('keydown', e=>{ if(e.key==='Enter') $('l-btn').click(); });
-
-  // Bouton déconnexion
-  $('logout-btn').addEventListener('click', () => window.GFA.signOut(window.GFA.auth));
-
-  // Navigation tabs
-  document.querySelectorAll('.nav-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      STATE.activeTab=btn.dataset.tab;
-      STATE.ficheId=null;
-      render();
-    });
-  });
-});
-
-// ════════════════════════════════════════════════════════════════
 //  CHARGEMENT DONNÉES
 // ════════════════════════════════════════════════════════════════
 async function loadAll(){
@@ -565,6 +581,9 @@ async function loadAll(){
   render();
 }
 
+// Exposer pour le module Firebase
+window.loadAll = loadAll;
+
 // ════════════════════════════════════════════════════════════════
 //  RENDER PRINCIPAL
 // ════════════════════════════════════════════════════════════════
@@ -584,6 +603,9 @@ function render(){
     mc.appendChild(renderAllAssocies());
   }
 }
+
+// Exposer pour le module Firebase
+window.render = render;
 
 // ════════════════════════════════════════════════════════════════
 //  VUE ADMIN — LISTE GROUPEMENTS
