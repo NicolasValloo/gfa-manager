@@ -1097,6 +1097,165 @@
         }
         .annee-link--cmd:hover { background: var(--wine-burgundy); color: white; }
 
+        /* ── BOUTON SUPPRIMER EN-TÊTE FICHE ── */
+        .btn-delete-header {
+            background: none;
+            border: 2px solid #c0392b;
+            color: #c0392b;
+            font-family: 'Playfair Display', serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 0.5rem 1.2rem;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.25s;
+            letter-spacing: 0.03em;
+        }
+        .btn-delete-header:hover {
+            background: #c0392b;
+            color: white;
+        }
+
+        /* ── MODAL DANGER (suppression groupement) ── */
+        .modal-box--sm { max-width: 480px; }
+        .modal-head--danger {
+            background: linear-gradient(135deg, #8B1A1A, #c0392b);
+        }
+        .danger-icon {
+            font-size: 3rem;
+            text-align: center;
+            margin: 0.5rem 0 1.2rem;
+        }
+        .danger-msg {
+            text-align: center;
+            font-size: 1.15rem;
+            line-height: 1.6;
+            color: var(--dark);
+            margin-bottom: 0.8rem;
+        }
+        .danger-submsg {
+            text-align: center;
+            font-size: 0.95rem;
+            color: #888;
+            line-height: 1.5;
+        }
+        .btn-danger-confirm {
+            background: linear-gradient(135deg, #c0392b, #8B1A1A);
+            color: white;
+            box-shadow: 0 4px 12px rgba(192,57,43,0.3);
+        }
+        .btn-danger-confirm:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(192,57,43,0.4);
+        }
+
+        /* ── ICÔNE ÉDITION ASSOCIÉ ── */
+        .edit-icon-btn {
+            background: none;
+            border: none;
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 0.3rem 0.5rem;
+            border-radius: 4px;
+            transition: background 0.2s;
+            opacity: 0.6;
+        }
+        .edit-icon-btn:hover {
+            background: rgba(107,30,60,0.08);
+            opacity: 1;
+        }
+
+        /* ── CONFIRM SUPPRESSION DANS MODAL ASSOCIÉ ── */
+        .confirm-danger-box {
+            background: #fdf0f0;
+            border: 1px solid #f5c6c6;
+            border-radius: 4px;
+            padding: 1rem 1.2rem;
+            margin-top: 1.5rem;
+            font-size: 0.95rem;
+        }
+        .btn-delete-outline {
+            background: none;
+            border: 2px solid #c0392b;
+            color: #c0392b;
+            font-family: 'Playfair Display', serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 0.6rem 1.2rem;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+        .btn-delete-outline:hover {
+            background: #c0392b;
+            color: white;
+        }
+
+        /* ── CATALOGUE STANDARD ── */
+        .catalogue-std-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.7rem;
+            margin: 1.2rem 0 1.5rem;
+        }
+        .catalogue-std-tag {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: linear-gradient(135deg, rgba(201,169,97,0.15), rgba(201,169,97,0.08));
+            border: 1px solid rgba(201,169,97,0.5);
+            border-radius: 2px;
+            padding: 0.45rem 0.8rem 0.45rem 1rem;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #6b4c10;
+            transition: all 0.2s;
+        }
+        .catalogue-std-tag:hover {
+            border-color: var(--gold);
+            background: rgba(201,169,97,0.2);
+        }
+        .tag-remove-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #b89451;
+            font-size: 1.1rem;
+            line-height: 1;
+            padding: 0;
+            font-weight: 700;
+            transition: color 0.2s;
+        }
+        .tag-remove-btn:hover { color: #c0392b; }
+        .catalogue-add-row {
+            display: flex;
+            gap: 0.8rem;
+            align-items: center;
+        }
+        .catalogue-add-input {
+            flex: 1;
+            margin-bottom: 0 !important;
+        }
+
+        /* ── MODAL MODIFICATION ASSOCIÉ select ── */
+        .finput[data-type="select"],
+        select.finput {
+            padding: 0.9rem 1rem;
+            border: 2px solid rgba(107,30,60,0.2);
+            border-radius: 2px;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.05rem;
+            background: white;
+            color: var(--dark);
+            transition: border-color 0.25s;
+            cursor: pointer;
+        }
+        select.finput:focus {
+            outline: none;
+            border-color: var(--wine-burgundy);
+            box-shadow: 0 0 0 3px rgba(107,30,60,0.08);
+        }
+
         /* Responsive */
         @media (max-width: 900px) {
             .two-col-grid { grid-template-columns: 1fr; }
@@ -1269,33 +1428,194 @@
             );
         }
 
-        // ─── FICHE DÉTAIL GROUPEMENT ─────────────────────────────────────────
-        function FicheGroupement({ g, onBack }) {
-            const [commentaire, setCommentaire] = useState(g.commentaire);
-            const [saved, setSaved] = useState(false);
+        // ─── MODAL MODIFICATION ASSOCIÉ ─────────────────────────────────────
+        function ModalEditAssocie({ associe, onClose, onSave, onDelete }) {
+            const [form, setForm] = useState({ ...associe });
+            const [confirmDelete, setConfirmDelete] = useState(false);
+            const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-            const saveComment = () => { setSaved(true); setTimeout(()=>setSaved(false),2500); };
+            return (
+                <div className="modal-backdrop" onClick={onClose}>
+                    <div className="modal-box" onClick={e => e.stopPropagation()}>
+                        <div className="modal-head">
+                            <h3 className="modal-title">Modifier l'associé</h3>
+                            <button className="modal-close-btn" onClick={onClose}>✕</button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="form-row-2">
+                                <div className="fgroup">
+                                    <label className="flabel">Nom</label>
+                                    <input className="finput" value={form.nom} onChange={e => set('nom', e.target.value)} />
+                                </div>
+                                <div className="fgroup">
+                                    <label className="flabel">Prénom</label>
+                                    <input className="finput" value={form.prenom} onChange={e => set('prenom', e.target.value)} />
+                                </div>
+                            </div>
+                            <div className="form-row-2">
+                                <div className="fgroup">
+                                    <label className="flabel">Nombre de parts</label>
+                                    <input className="finput" type="number" value={form.parts} onChange={e => set('parts', parseInt(e.target.value)||0)} />
+                                </div>
+                                <div className="fgroup">
+                                    <label className="flabel">Téléphone</label>
+                                    <input className="finput" value={form.tel} onChange={e => set('tel', e.target.value)} />
+                                </div>
+                            </div>
+                            <div className="fgroup" style={{marginBottom:'1.5rem'}}>
+                                <label className="flabel">Adresse de livraison</label>
+                                <input className="finput" value={form.adresse} onChange={e => set('adresse', e.target.value)} />
+                            </div>
+                            <div className="fgroup" style={{marginBottom:'1.5rem'}}>
+                                <label className="flabel">Email</label>
+                                <input className="finput" type="email" value={form.email} onChange={e => set('email', e.target.value)} />
+                            </div>
+                            <div className="form-row-2">
+                                <div className="fgroup">
+                                    <label className="flabel">État</label>
+                                    <select className="finput" value={form.etat} onChange={e => set('etat', e.target.value)}>
+                                        <option value="bernard">Bernard</option>
+                                        <option value="vigneron">Vigneron</option>
+                                    </select>
+                                </div>
+                                <div className="fgroup">
+                                    <label className="flabel">Statut</label>
+                                    <select className="finput" value={form.actif ? 'actif' : 'inactif'} onChange={e => set('actif', e.target.value === 'actif')}>
+                                        <option value="actif">Actif</option>
+                                        <option value="inactif">Inactif</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {confirmDelete && (
+                                <div className="confirm-danger-box">
+                                    <p>⚠️ Confirmer la suppression de <strong>{associe.prenom} {associe.nom}</strong> ?</p>
+                                    <div style={{display:'flex', gap:'0.8rem', marginTop:'0.8rem'}}>
+                                        <button className="btn btn-danger-confirm" onClick={() => onDelete(associe.id)}>Oui, supprimer</button>
+                                        <button className="btn btn-secondary" onClick={() => setConfirmDelete(false)}>Annuler</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="modal-foot" style={{justifyContent:'space-between'}}>
+                            <button className="btn btn-delete-outline" onClick={() => setConfirmDelete(true)}>
+                                🗑 Supprimer
+                            </button>
+                            <div style={{display:'flex', gap:'1rem'}}>
+                                <button className="btn btn-secondary" onClick={onClose}>Annuler</button>
+                                <button className="btn btn-gold" onClick={() => { onSave(form); onClose(); }}>Enregistrer</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ─── POPUP CONFIRMATION SUPPRESSION GROUPEMENT ──────────────────────
+        function ModalConfirmSupprimer({ nom, onConfirm, onCancel }) {
+            return (
+                <div className="modal-backdrop" onClick={onCancel}>
+                    <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
+                        <div className="modal-head modal-head--danger">
+                            <h3 className="modal-title">Supprimer le groupement</h3>
+                            <button className="modal-close-btn" onClick={onCancel}>✕</button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="danger-icon">⚠️</div>
+                            <p className="danger-msg">
+                                Vous êtes sur le point de supprimer le groupement<br/>
+                                <strong>« {nom} »</strong>.
+                            </p>
+                            <p className="danger-submsg">
+                                Cette action est irréversible. Toutes les données associées seront définitivement supprimées : associés, documents, catalogues et historique des commandes.
+                            </p>
+                        </div>
+                        <div className="modal-foot">
+                            <button className="btn btn-secondary" onClick={onCancel}>Annuler</button>
+                            <button className="btn btn-danger-confirm" onClick={onConfirm}>Confirmer la suppression</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ─── FICHE DÉTAIL GROUPEMENT ─────────────────────────────────────────
+        const CATALOGUE_STANDARD_INIT = [
+            "Bourgogne Aligoté", "Bourgogne Chardonnay", "Bourgogne Pinot Noir",
+            "Haute Côte de Beaune Rouge", "Haute Côte de Beaune Blanc",
+            "Côte de Beaune Village", "Beaune Premier Cru",
+        ];
+
+        function FicheGroupement({ g, onBack, onDelete }) {
+            const [associes, setAssocies]           = useState(g.associes);
+            const [commentaire, setCommentaire]     = useState(g.commentaire);
+            const [saved, setSaved]                 = useState(false);
+            const [editAssocie, setEditAssocie]     = useState(null);
+            const [showConfirmDel, setShowConfirmDel] = useState(false);
+            const [catalogueStd, setCatalogueStd]   = useState(CATALOGUE_STANDARD_INIT);
+            const [newAppellation, setNewAppellation] = useState('');
+
+            const saveComment = () => { setSaved(true); setTimeout(() => setSaved(false), 2500); };
+
+            const handleSaveAssocie = (updated) => {
+                setAssocies(prev => prev.map(a => a.id === updated.id ? updated : a));
+            };
+            const handleDeleteAssocie = (id) => {
+                setAssocies(prev => prev.filter(a => a.id !== id));
+                setEditAssocie(null);
+            };
+
+            const addAppellation = () => {
+                const v = newAppellation.trim();
+                if (v && !catalogueStd.includes(v)) {
+                    setCatalogueStd(prev => [...prev, v]);
+                    setNewAppellation('');
+                }
+            };
+            const removeAppellation = (app) => {
+                setCatalogueStd(prev => prev.filter(a => a !== app));
+            };
 
             return (
                 <div className="fiche-container">
+                    {/* Modaux */}
+                    {editAssocie && (
+                        <ModalEditAssocie
+                            associe={editAssocie}
+                            onClose={() => setEditAssocie(null)}
+                            onSave={handleSaveAssocie}
+                            onDelete={handleDeleteAssocie}
+                        />
+                    )}
+                    {showConfirmDel && (
+                        <ModalConfirmSupprimer
+                            nom={g.nom}
+                            onConfirm={onDelete}
+                            onCancel={() => setShowConfirmDel(false)}
+                        />
+                    )}
+
                     {/* Breadcrumb */}
                     <div className="breadcrumb">
-                        <button className="breadcrumb-back" onClick={onBack}>
-                            ← Retour aux groupements
-                        </button>
+                        <button className="breadcrumb-back" onClick={onBack}>← Retour aux groupements</button>
                         <span className="breadcrumb-sep">/</span>
                         <span className="breadcrumb-current">{g.nom}</span>
                     </div>
 
-                    {/* En-tête de la fiche */}
+                    {/* En-tête */}
                     <div className="fiche-header">
                         <div>
                             <h2 className="fiche-title">{g.nom}</h2>
                             <div className="fiche-subtitle">Créé le {g.date_creation}</div>
                         </div>
-                        <span className={`badge ${g.actif ? 'badge-success' : 'badge-warning'}`}>
-                            {g.actif ? 'Actif' : 'Inactif'}
-                        </span>
+                        <div style={{display:'flex', alignItems:'center', gap:'1rem'}}>
+                            <span className={`badge ${g.actif ? 'badge-success' : 'badge-warning'}`}>
+                                {g.actif ? 'Actif' : 'Inactif'}
+                            </span>
+                            <button className="btn-delete-header" onClick={() => setShowConfirmDel(true)}>
+                                🗑 Supprimer
+                            </button>
+                        </div>
                     </div>
 
                     {/* Informations générales */}
@@ -1319,7 +1639,9 @@
                             </div>
                             <div className="fiche-info-item">
                                 <div className="info-label">Associés</div>
-                                <div className="info-value">{g.associes.length} <span className="parts-sub">({g.associes.filter(a=>a.actif).length} actifs)</span></div>
+                                <div className="info-value">
+                                    {associes.length} <span className="parts-sub">({associes.filter(a => a.actif).length} actifs)</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1342,10 +1664,11 @@
                                         <th>Téléphone</th>
                                         <th>État</th>
                                         <th>Statut</th>
+                                        <th></th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {g.associes.map(a => (
+                                    {associes.map(a => (
                                         <tr key={a.id} className={!a.actif ? 'row-inactive' : ''}>
                                             <td className="td-bold">{a.nom}</td>
                                             <td>{a.prenom}</td>
@@ -1353,13 +1676,16 @@
                                             <td className="td-address">{a.adresse}</td>
                                             <td><a href={`mailto:${a.email}`} className="td-link">{a.email}</a></td>
                                             <td className="td-nowrap">{a.tel}</td>
-                                            <td>
-                                                <span className={`etat-badge etat-${a.etat}`}>{a.etat}</span>
-                                            </td>
+                                            <td><span className={`etat-badge etat-${a.etat}`}>{a.etat}</span></td>
                                             <td>
                                                 <span className={`badge ${a.actif ? 'badge-success' : 'badge-warning'}`} style={{fontSize:'0.72rem',padding:'0.25rem 0.7rem'}}>
                                                     {a.actif ? 'Actif' : 'Inactif'}
                                                 </span>
+                                            </td>
+                                            <td>
+                                                <button className="edit-icon-btn" onClick={() => setEditAssocie(a)} title="Modifier">
+                                                    ✏️
+                                                </button>
                                             </td>
                                         </tr>
                                     ))}
@@ -1384,9 +1710,34 @@
                         </div>
                     </div>
 
+                    {/* Catalogue standard */}
+                    <div className="card">
+                        <div className="section-header">
+                            <h3 className="section-title">Catalogue standard</h3>
+                            <span className="parts-sub" style={{fontSize:'0.9rem'}}>Liste des appellations de référence du groupement</span>
+                        </div>
+                        <div className="catalogue-std-grid">
+                            {catalogueStd.map(app => (
+                                <div key={app} className="catalogue-std-tag">
+                                    <span>{app}</span>
+                                    <button className="tag-remove-btn" onClick={() => removeAppellation(app)} title="Supprimer">×</button>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="catalogue-add-row">
+                            <input
+                                className="finput catalogue-add-input"
+                                placeholder="Ajouter une appellation..."
+                                value={newAppellation}
+                                onChange={e => setNewAppellation(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && addAppellation()}
+                            />
+                            <button className="btn btn-gold btn-sm-text" onClick={addAppellation}>+ Ajouter</button>
+                        </div>
+                    </div>
+
                     {/* Deux colonnes : Documents + Liens annuels */}
                     <div className="two-col-grid">
-                        {/* Documents */}
                         <div className="card">
                             <div className="section-header">
                                 <h3 className="section-title">Documents</h3>
@@ -1406,8 +1757,6 @@
                                 ))
                             }
                         </div>
-
-                        {/* Catalogues & Commandes */}
                         <div className="card">
                             <h3 className="section-title">Catalogues & Commandes par année</h3>
                             <div className="annees-grid">
@@ -1443,8 +1792,19 @@
                 setGroupements(prev => [...prev, newG]);
             };
 
+            const handleDeleteGroupement = () => {
+                setGroupements(prev => prev.filter(g => g.id !== ficheId));
+                setFicheId(null);
+            };
+
             if (ficheGroupement) {
-                return <FicheGroupement g={ficheGroupement} onBack={() => setFicheId(null)} />;
+                return (
+                    <FicheGroupement
+                        g={ficheGroupement}
+                        onBack={() => setFicheId(null)}
+                        onDelete={handleDeleteGroupement}
+                    />
+                );
             }
 
             return (
