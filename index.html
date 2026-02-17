@@ -489,45 +489,50 @@ function closeModal(){ $('modals').innerHTML=''; }
 // ════════════════════════════════════════════════════════════════
 //  AUTH
 // ════════════════════════════════════════════════════════════════
-document.addEventListener('gfa:authchange', e => {
-  STATE.user = e.detail;
-  if(STATE.user){
-    $('login-screen').style.display='none';
-    $('app').style.display='block';
-    loadAll();
-  } else {
-    $('login-screen').style.display='flex';
-    $('app').style.display='none';
-  }
-});
+document.addEventListener('DOMContentLoaded', () => {
+  // Listener changement d'état auth
+  document.addEventListener('gfa:authchange', e => {
+    STATE.user = e.detail;
+    if(STATE.user){
+      $('login-screen').style.display='none';
+      $('app').style.display='block';
+      loadAll();
+    } else {
+      $('login-screen').style.display='flex';
+      $('app').style.display='none';
+    }
+  });
 
-$('l-btn').addEventListener('click', async () => {
-  const email=$('l-email').value.trim(), pwd=$('l-pwd').value;
-  if(!email||!pwd) return;
-  $('l-btn').textContent='Connexion…'; $('l-btn').disabled=true;
-  try {
-    await window.GFA.signInWithEmailAndPassword(window.GFA.auth, email, pwd);
-  } catch(err){
-    $('login-err').textContent='Email ou mot de passe incorrect.';
-    $('login-err').style.display='block';
-  }
-  $('l-btn').textContent='Se connecter'; $('l-btn').disabled=false;
-});
+  // Bouton connexion
+  $('l-btn').addEventListener('click', async () => {
+    const email=$('l-email').value.trim(), pwd=$('l-pwd').value;
+    if(!email||!pwd) return;
+    $('l-btn').textContent='Connexion…'; $('l-btn').disabled=true;
+    try {
+      await window.GFA.signInWithEmailAndPassword(window.GFA.auth, email, pwd);
+    } catch(err){
+      console.error('Erreur de connexion:', err);
+      $('login-err').textContent='Email ou mot de passe incorrect.';
+      $('login-err').style.display='block';
+    }
+    $('l-btn').textContent='Se connecter'; $('l-btn').disabled=false;
+  });
 
-$('l-pwd').addEventListener('keydown', e=>{ if(e.key==='Enter') $('l-btn').click(); });
+  // Enter sur le champ password
+  $('l-pwd').addEventListener('keydown', e=>{ if(e.key==='Enter') $('l-btn').click(); });
 
-$('logout-btn').addEventListener('click', () => window.GFA.signOut(window.GFA.auth));
+  // Bouton déconnexion
+  $('logout-btn').addEventListener('click', () => window.GFA.signOut(window.GFA.auth));
 
-// ════════════════════════════════════════════════════════════════
-//  NAVIGATION
-// ════════════════════════════════════════════════════════════════
-document.querySelectorAll('.nav-btn').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    STATE.activeTab=btn.dataset.tab;
-    STATE.ficheId=null;
-    render();
+  // Navigation tabs
+  document.querySelectorAll('.nav-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      STATE.activeTab=btn.dataset.tab;
+      STATE.ficheId=null;
+      render();
+    });
   });
 });
 
