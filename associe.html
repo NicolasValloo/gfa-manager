@@ -11,14 +11,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, collection, query, where, getDocs, doc, addDoc, updateDoc }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ⚙️ MÊME CONFIG QUE index.html — à remplir
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  ✅  CONFIGURATION FIREBASE — Projet : gfa-manager-50a7f    ║
+// ╚══════════════════════════════════════════════════════════════╝
 const firebaseConfig = {
-  apiKey:            "VOTRE_API_KEY",
-  authDomain:        "VOTRE_PROJECT.firebaseapp.com",
-  projectId:         "VOTRE_PROJECT_ID",
-  storageBucket:     "VOTRE_PROJECT.appspot.com",
-  messagingSenderId: "VOTRE_SENDER_ID",
-  appId:             "VOTRE_APP_ID"
+  apiKey:            "AIzaSyB6MW35DPPsh59DoOEPVXml6FIvDNFgdI0",
+  authDomain:        "gfa-manager-50a7f.firebaseapp.com",
+  projectId:         "gfa-manager-50a7f",
+  storageBucket:     "gfa-manager-50a7f.firebasestorage.app",
+  messagingSenderId: "224596157977",
+  appId:             "1:224596157977:web:c8d09907b8185010076c88"
 };
 
 const app = initializeApp(firebaseConfig);
