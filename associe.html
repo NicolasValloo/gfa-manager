@@ -41,38 +41,76 @@ async function findAssocieByToken(token) {
   return null;
 }
 
-async function getCampagnes(gId) {
-  const snap = await getDocs(collection(db,"groupements",gId,"campagnes"));
-  return snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.annee||0)-(a.annee||0));
+// Charge la campagne active pour le vigneron du groupement
+async function getCampagneActive(vigneron) {
+  const snap = await getDocs(
+    query(collection(db, "campagnes"), where("vigneron","==",vigneron), where("actif","==",true))
+  );
+  if(snap.empty) return null;
+  return {id:snap.docs[0].id, ...snap.docs[0].data()};
 }
 
-async function getVinsCampagne(gId, cId) {
-  const snap = await getDocs(collection(db,"groupements",gId,"campagnes",cId,"vins"));
+// Charge les vins de la campagne filtrés par groupement
+async function getVinsCampagne(campagneId, groupementId) {
+  const snap = await getDocs(
+    query(collection(db,"campagnes",campagneId,"vins"), where("groupement_id","==",groupementId))
+  );
   return snap.docs.map(d=>({id:d.id,...d.data()}));
 }
 
-async function getCommandes(gId, aId) {
-  const snap = await getDocs(
-    query(collection(db,"groupements",gId,"commandes"), where("associe_id","==",aId))
-  );
-  return snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.annee||0)-(a.annee||0));
+// Charge toutes les commandes de l'associé (toutes campagnes confondues)
+async function getCommandes(associeId) {
+  // Les commandes sont maintenant dans /campagnes/{id}/commandes
+  // On doit chercher dans toutes les campagnes
+  const campagnesSnap = await getDocs(collection(db, "campagnes"));
+  const toutesCommandes = [];
+  
+  for(const campDoc of campagnesSnap.docs) {
+    const cmdsSnap = await getDocs(
+      query(collection(db,"campagnes",campDoc.id,"commandes"), where("associe_id","==",associeId))
+    );
+    cmdsSnap.docs.forEach(cmdDoc => {
+      toutesCommandes.push({
+        id: cmdDoc.id,
+        campagne_id: campDoc.id,
+        ...cmdDoc.data()
+      });
+    });
+  }
+  
+  return toutesCommandes.sort((a,b)=>(b.annee||0)-(a.annee||0));
 }
 
-async function saveCommande(gId, aId, cId, annee, panier, modeRecup, valider, nomsSn, prixSn) {
+// Sauvegarde la commande dans /campagnes/{campagneId}/commandes
+async function saveCommande(campagneId, associeId, groupementId, annee, panier, modeRecup, valider, nomsSn, prixSn) {
   const existing = (await getDocs(
-    query(collection(db,"groupements",gId,"commandes"),
-          where("associe_id","==",aId), where("campagne_id","==",cId))
+    query(collection(db,"campagnes",campagneId,"commandes"),
+          where("associe_id","==",associeId), where("groupement_id","==",groupementId))
   )).docs[0];
+  
   const data = {
-    associe_id:aId, campagne_id:cId, annee, panier, mode_recup:modeRecup,
-    validee:valider, date_maj:new Date().toISOString(),
-    noms_snapshot:nomsSn||{}, prix_snapshot:prixSn||{}
+    associe_id: associeId,
+    groupement_id: groupementId,
+    campagne_id: campagneId,
+    annee,
+    panier,
+    mode_recup: modeRecup,
+    validee: valider,
+    date_maj: new Date().toISOString(),
+    noms_snapshot: nomsSn||{},
+    prix_snapshot: prixSn||{}
   };
-  if (existing) { await updateDoc(doc(db,"groupements",gId,"commandes",existing.id),data); return existing.id; }
-  else { const r=await addDoc(collection(db,"groupements",gId,"commandes"),data); return r.id; }
+  
+  if (existing) {
+    await updateDoc(doc(db,"campagnes",campagneId,"commandes",existing.id), data);
+    return existing.id;
+  } else {
+    const r = await addDoc(collection(db,"campagnes",campagneId,"commandes"), data);
+    return r.id;
+  }
 }
 
-window.ASSOC_API = { findAssocieByToken, getCampagnes, getVinsCampagne, getCommandes, saveCommande };
+window.ASSOC_API = { findAssocieByToken, getCampagneActive, getVinsCampagne, getCommandes, saveCommande };
 window.dispatchEvent(new Event('api:ready'));
 </script>
 
@@ -251,16 +289,20 @@ window.addEventListener('api:ready', async ()=>{
     if (!ASSOC.actif) return err('Accès désactivé','Votre accès a été désactivé. Contactez votre administrateur.');
     document.getElementById('hdr-name').textContent = ASSOC.prenom+' '+ASSOC.nom;
 
-    [CAMPAGNES, COMMANDES] = await Promise.all([
-      window.ASSOC_API.getCampagnes(GROUPT.id),
-      window.ASSOC_API.getCommandes(GROUPT.id, ASSOC.id)
+    // Charger la campagne active du vigneron + toutes les commandes de l'associé
+    [CAMP, COMMANDES] = await Promise.all([
+      window.ASSOC_API.getCampagneActive(GROUPT.vigneron),
+      window.ASSOC_API.getCommandes(ASSOC.id)
     ]);
-    CAMP = CAMPAGNES.find(c=>c.actif)||null;
+    
     if (CAMP) {
-      VINS = await window.ASSOC_API.getVinsCampagne(GROUPT.id, CAMP.id);
-      CMD  = COMMANDES.find(c=>c.campagne_id===CAMP.id)||null;
+      // Charger les vins filtrés par groupement
+      VINS = await window.ASSOC_API.getVinsCampagne(CAMP.id, GROUPT.id);
+      // Chercher la commande de cette campagne
+      CMD  = COMMANDES.find(c=>c.campagne_id===CAMP.id && c.groupement_id===GROUPT.id)||null;
       if (CMD) { PANIER=CMD.panier||{}; MODE=CMD.mode_recup||'bernard'; }
     }
+    
     document.getElementById('tabs-nav').style.display='block';
     document.querySelectorAll('.tab').forEach(b=>{
       b.addEventListener('click',()=>{
@@ -448,7 +490,7 @@ function bind(){
   if(bm) bm.addEventListener('click',async()=>{
     const ns={},ps={};
     VINS.forEach(v=>{ns[v.id]=v.nom;ps[v.id]=v.prix;});
-    await window.ASSOC_API.saveCommande(GROUPT.id,ASSOC.id,CAMP.id,CAMP.annee,PANIER,MODE,false,ns,ps);
+    await window.ASSOC_API.saveCommande(CAMP.id,ASSOC.id,GROUPT.id,CAMP.annee,PANIER,MODE,false,ns,ps);
     if(CMD) CMD.validee=false; render();
   });
 }
@@ -467,10 +509,10 @@ async function sauv(valider){
   const ns={},ps={};
   VINS.forEach(v=>{ns[v.id]=v.nom;ps[v.id]=v.prix;});
   try {
-    const id=await window.ASSOC_API.saveCommande(GROUPT.id,ASSOC.id,CAMP.id,CAMP.annee,PANIER,MODE,valider,ns,ps);
-    CMD={id,campagne_id:CAMP.id,panier:PANIER,mode_recup:MODE,validee:valider,
+    const id=await window.ASSOC_API.saveCommande(CAMP.id,ASSOC.id,GROUPT.id,CAMP.annee,PANIER,MODE,valider,ns,ps);
+    CMD={id,campagne_id:CAMP.id,groupement_id:GROUPT.id,panier:PANIER,mode_recup:MODE,validee:valider,
          annee:CAMP.annee,noms_snapshot:ns,prix_snapshot:ps,date_maj:new Date().toISOString()};
-    const i=COMMANDES.findIndex(c=>c.campagne_id===CAMP.id);
+    const i=COMMANDES.findIndex(c=>c.campagne_id===CAMP.id && c.groupement_id===GROUPT.id);
     if(i>=0) COMMANDES[i]=CMD; else COMMANDES.push(CMD);
     if(valider) render(); else al('Brouillon sauvegardé.',true);
   } catch(x){console.error(x);al('Erreur lors de la sauvegarde. Réessayez.',false);}
