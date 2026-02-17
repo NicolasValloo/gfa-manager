@@ -6,6 +6,57 @@
 <title>GFA Manager — Administration</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Cormorant+Garamond:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
+<script>
+// ── Ouvre le client mail avec texte pré-rempli (associé individuel) ──
+function ouvrirMailAssocie(associe, groupement) {
+  const lien = `${location.origin}/associe.html?token=${associe.token}`;
+  const sujet = encodeURIComponent(
+    `Votre accès GFA Manager — ${groupement.nom}`
+  );
+  const corps = encodeURIComponent(
+`Bonjour ${associe.prenom},
+
+Vous êtes associé(e) au groupement "${groupement.nom}" (${groupement.vigneron || ''}).
+
+Retrouvez votre espace personnel — informations, crédits et commandes — via le lien ci-dessous :
+
+${lien}
+
+Ce lien vous est personnel. Conservez-le précieusement.
+
+Cordialement`
+  );
+  window.location.href = `mailto:${associe.email}?subject=${sujet}&body=${corps}`;
+}
+
+// ── Ouvre le client mail pour une campagne (associé individuel) ──
+function ouvrirMailCampagne(associe, groupement, annee, dateFin) {
+  const lien  = `${location.origin}/associe.html?token=${associe.token}`;
+  const ppb   = groupement.parts_pour_bouteille || 1;
+  const prix  = groupement.prix_bouteille_reference || 0;
+  const creds = ((associe.parts || 0) / ppb * prix).toFixed(2);
+  const sujet = encodeURIComponent(
+    `🍷 Campagne GFA ${annee} — Passez votre commande`
+  );
+  const corps = encodeURIComponent(
+`Bonjour ${associe.prenom},
+
+La campagne ${annee} est maintenant ouverte pour le groupement "${groupement.nom}".
+
+Vos crédits disponibles : ${creds} €${dateFin ? `\nDate limite de commande : ${dateFin}` : ''}
+
+Accédez à votre espace pour passer votre commande :
+
+${lien}
+
+Cordialement`
+  );
+  window.location.href = `mailto:${associe.email}?subject=${sujet}&body=${corps}`;
+}
+
+window.MAIL = { ouvrirMailAssocie, ouvrirMailCampagne };
+</script>
+
 <!-- ══ FIREBASE (v10 CDN) ══ -->
 <script type="module">
 import { initializeApp }                    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -18,12 +69,12 @@ import { getFirestore, collection, doc, getDocs, getDoc, setDoc, addDoc, updateD
 //  ⚙️  REMPLACEZ CES VALEURS PAR VOTRE CONFIGURATION FIREBASE
 // ══════════════════════════════════════════════════════════
 const firebaseConfig = {
-  apiKey: "AIzaSyB6MW35DPPsh59DoOEPVXml6FIvDNFgdI0",
-  authDomain: "gfa-manager-50a7f.firebaseapp.com",
-  projectId: "gfa-manager-50a7f",
-  storageBucket: "gfa-manager-50a7f.firebasestorage.app",
-  messagingSenderId: "224596157977",
-  appId: "1:224596157977:web:c8d09907b8185010076c88"
+  apiKey:            "VOTRE_API_KEY",
+  authDomain:        "VOTRE_PROJECT.firebaseapp.com",
+  projectId:         "VOTRE_PROJECT_ID",
+  storageBucket:     "VOTRE_PROJECT.appspot.com",
+  messagingSenderId: "VOTRE_SENDER_ID",
+  appId:             "VOTRE_APP_ID"
 };
 // ══════════════════════════════════════════════════════════
 
@@ -568,7 +619,8 @@ function renderGroupementRow(g){
   const actions=el('div',{class:'gcell gcell--actions'});
   actions.appendChild(el('button',{class:'btn btn-primary btn-sm',
     onClick:()=>{ STATE.ficheId=g.id; render(); }},'Voir Détails'));
-  actions.appendChild(el('button',{class:'btn btn-success btn-sm'},'Nouvelle Campagne'));
+  actions.appendChild(el('button',{class:'btn btn-success btn-sm',
+    onClick:()=>openModalNouvelleCampagne(g)},'Nouvelle Campagne'));
   row.appendChild(actions);
   return row;
 }
@@ -662,11 +714,12 @@ function renderTableAssocies(g){
       <td><span class="etat etat-${a.etat}">${esc(a.etat||'')}</span></td>
       <td><span class="badge ${a.actif?'badge-success':'badge-warning'}" style="font-size:.7rem;padding:.2rem .7rem">
         ${a.actif?'Actif':'Inactif'}</span></td>
-      <td style="min-width:280px">
+      <td style="min-width:300px">
         ${lien?`
         <div class="link-box">
           <input class="link-input" value="${esc(lien)}" readonly id="link-${a.id}">
-          <button class="copy-btn" data-aid="${a.id}">Copier</button>
+          <button class="copy-btn" data-aid="${a.id}" title="Copier le lien">📋</button>
+          <button class="send-btn" data-aid="${a.id}" title="Envoyer par email">✉️</button>
         </div>`:'<span style="font-size:.82rem;color:#bbb;font-style:italic">—</span>'}
       </td>
       <td><button class="edit-btn" data-aid="${a.id}" title="Modifier">✏️</button></td>`;
@@ -687,6 +740,14 @@ function renderTableAssocies(g){
     btn.addEventListener('click',()=>{
       const inp=$(`link-${btn.dataset.aid}`);
       if(inp){ inp.select(); navigator.clipboard.writeText(inp.value); toast('Lien copié !'); }
+    });
+  });
+  card.querySelectorAll('.send-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const a=(g.associes||[]).find(x=>x.id===btn.dataset.aid);
+      if(!a||!a.email){ toast('Cet associé n\'a pas d\'adresse email.', true); return; }
+      if(!a.token){ toast('Cet associé n\'a pas encore de lien généré.', true); return; }
+      window.MAIL.ouvrirMailAssocie(a, g);
     });
   });
   return card;
@@ -979,14 +1040,131 @@ function openModalAssocie(g, a=null){
       actif:box.querySelector('#ma-actif').value==='1',
       token, groupement_id:g.id
     };
-    const newId=await window.GFA.saveAssocie(g.id, data);
-    if(!data.id) data.id=newId;
-    if(!g.associes) g.associes=[];
-    const idx=g.associes.findIndex(x=>x.id===data.id);
-    if(idx>=0) g.associes[idx]=data; else g.associes.push(data);
+    const newId = await window.GFA.saveAssocie(g.id, data);
+    if(!data.id) data.id = newId;
+    if(!g.associes) g.associes = [];
+    const idx = g.associes.findIndex(x => x.id === data.id);
+    if(idx >= 0) g.associes[idx] = data; else g.associes.push(data);
     closeModal(); render();
-    toast(isEdit?'Associé mis à jour.':'Associé créé. Le lien est disponible dans le tableau.');
+
+    // À la création : ouvre directement le client mail avec le lien pré-rempli
+    if(!isEdit && data.email) {
+      window.MAIL.ouvrirMailAssocie(data, g);
+    } else {
+      toast(isEdit ? 'Associé mis à jour.' : 'Associé créé.');
+    }
   };
+  openModal(box);
+}
+
+// ════════════════════════════════════════════════════════════════
+//  MODAL — NOUVELLE CAMPAGNE
+// ════════════════════════════════════════════════════════════════
+function openModalNouvelleCampagne(g) {
+  const box = el('div', {class:'mbox'});
+  const anneeActuelle = new Date().getFullYear();
+  const associesActifs = (g.associes||[]).filter(a=>a.actif&&a.email&&a.token);
+
+  box.innerHTML = `
+    <div class="mhead">
+      <span class="mtitle">Nouvelle Campagne</span>
+      <button class="mclose">✕</button>
+    </div>
+    <div class="mbody">
+      <div class="form2">
+        <div class="fg"><label class="flbl">Année *</label>
+          <input class="finput" id="nc-annee" type="number" value="${anneeActuelle}"></div>
+        <div class="fg"><label class="flbl">Date de clôture</label>
+          <input class="finput" id="nc-fin" placeholder="ex. 15 mars ${anneeActuelle}"></div>
+      </div>
+      <div class="fg"><label class="flbl">Prix de référence par bouteille (€)</label>
+        <input class="finput" id="nc-prix" type="number" step="0.01" value="${g.prix_bouteille_reference||''}"></div>
+      <div style="margin-top:1.2rem">
+        <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;color:var(--burg);margin-bottom:.8rem">
+          Notifier les associés (${associesActifs.length})
+        </div>
+        <div style="font-size:.88rem;color:#777;margin-bottom:.8rem">
+          Cliquez sur chaque associé pour ouvrir un email pré-rempli avec son lien personnel.
+        </div>
+        <div id="nc-assoc-list" style="display:flex;flex-direction:column;gap:.5rem;max-height:240px;overflow-y:auto">
+          ${associesActifs.map(a=>`
+            <div style="display:flex;align-items:center;justify-content:space-between;
+              padding:.7rem 1rem;border:1px solid rgba(107,30,60,.12);border-radius:3px;
+              background:rgba(248,245,239,.6)">
+              <span style="font-size:.95rem"><strong>${esc(a.prenom)} ${esc(a.nom)}</strong>
+                <span style="color:#999;font-size:.85rem;margin-left:.5rem">${esc(a.email)}</span>
+              </span>
+              <button class="nc-mail-btn btn btn-gold btn-sm"
+                data-aid="${a.id}" style="flex-shrink:0">
+                ✉️ Envoyer
+              </button>
+            </div>`).join('')}
+          ${!associesActifs.length ? '<p style="color:#aaa;font-style:italic;font-size:.9rem">Aucun associé actif avec email et lien.</p>' : ''}
+        </div>
+      </div>
+    </div>
+    <div class="mfoot" style="justify-content:space-between">
+      <button class="btn btn-secondary" id="nc-cancel">Fermer</button>
+      ${associesActifs.length > 1 ? `<button class="btn btn-primary" id="nc-all">✉️ Envoyer à tous (${associesActifs.length})</button>` : ''}
+    </div>`;
+
+  box.querySelector('.mclose').onclick = closeModal;
+  box.querySelector('#nc-cancel').onclick = closeModal;
+
+  // Sauvegarde prix si modifié, puis ouvre le mail
+  const savePrix = async () => {
+    const prix = parseFloat(box.querySelector('#nc-prix').value) || 0;
+    const fin  = box.querySelector('#nc-fin').value.trim();
+    const annee = parseInt(box.querySelector('#nc-annee').value) || anneeActuelle;
+    if (prix && prix !== g.prix_bouteille_reference) {
+      g.prix_bouteille_reference = prix;
+      await window.GFA.saveGroupement(g);
+    }
+    return { annee, fin, prix };
+  };
+
+  // Boutons individuels
+  box.querySelectorAll('.nc-mail-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const { annee, fin } = await savePrix();
+      const a = associesActifs.find(x=>x.id===btn.dataset.aid);
+      if(a) window.MAIL.ouvrirMailCampagne(a, g, annee, fin);
+    });
+  });
+
+  // Bouton "envoyer à tous" — ouvre les mails un par un avec délai
+  const btnAll = box.querySelector('#nc-all');
+  if(btnAll) {
+    btnAll.addEventListener('click', async ()=>{
+      const { annee, fin } = await savePrix();
+      btnAll.textContent = 'Ouverture des emails…'; btnAll.disabled = true;
+      for(let i=0; i<associesActifs.length; i++) {
+        const a = associesActifs[i];
+        const lien  = `${location.origin}/associe.html?token=${a.token}`;
+        const ppb   = g.parts_pour_bouteille || 1;
+        const prix  = g.prix_bouteille_reference || 0;
+        const creds = ((a.parts || 0) / ppb * prix).toFixed(2);
+        const sujet = encodeURIComponent(`🍷 Campagne GFA ${annee} — Passez votre commande`);
+        const corps = encodeURIComponent(
+`Bonjour ${a.prenom},
+
+La campagne ${annee} est ouverte pour le groupement "${g.nom}".
+
+Vos crédits disponibles : ${creds} €${fin ? `\nDate limite : ${fin}` : ''}
+
+Votre espace de commande :
+${lien}
+
+Cordialement`);
+        // Ouvrir dans un nouvel onglet pour ne pas quitter la page
+        window.open(`mailto:${a.email}?subject=${sujet}&body=${corps}`, '_blank');
+        // Petite pause entre chaque pour éviter le blocage du navigateur
+        await new Promise(r=>setTimeout(r,600));
+      }
+      btnAll.textContent = `✓ ${associesActifs.length} email(s) préparés`;
+    });
+  }
+
   openModal(box);
 }
 
