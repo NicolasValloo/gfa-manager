@@ -556,29 +556,53 @@ function closeModal(){ $('modals').innerHTML=''; }
 //  CHARGEMENT DONNÉES
 // ════════════════════════════════════════════════════════════════
 async function loadAll(){
-  $('main-content').innerHTML='<div class="loading">Chargement…</div>';
-  
-  // Charger groupements + associés
-  STATE.groupements = await window.GFA.getGroupements();
-  for(const g of STATE.groupements){
-    g.associes = await window.GFA.getAssocies(g.id);
+  try {
+    console.log('🔄 Début du chargement...');
+    $('main-content').innerHTML='<div class="loading">Chargement…</div>';
+    
+    // Charger groupements + associés
+    console.log('📦 Chargement des groupements...');
+    STATE.groupements = await window.GFA.getGroupements();
+    console.log('✅ Groupements chargés:', STATE.groupements.length);
+    
+    for(const g of STATE.groupements){
+      g.associes = await window.GFA.getAssocies(g.id);
+    }
+    console.log('✅ Associés chargés');
+    
+    // Charger campagnes (peut échouer si la collection n'existe pas encore)
+    try {
+      console.log('📦 Chargement des campagnes...');
+      const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+      const campSnap = await getDocs(collection(window.GFA.db, 'campagnes'));
+      if(!campSnap.empty) {
+        STATE.campagnes = await Promise.all(campSnap.docs.map(async (doc) => {
+          const data = {id:doc.id, ...doc.data()};
+          // Compter vins et commandes
+          const vinsSnap = await getDocs(collection(window.GFA.db, 'campagnes', doc.id, 'vins'));
+          const cmdsSnap = await getDocs(collection(window.GFA.db, 'campagnes', doc.id, 'commandes'));
+          data.nb_vins = vinsSnap.size;
+          data.nb_commandes = cmdsSnap.size;
+          return data;
+        }));
+        STATE.campagnes.sort((a,b)=>(b.annee||0)-(a.annee||0));
+        console.log('✅ Campagnes chargées:', STATE.campagnes.length);
+      } else {
+        STATE.campagnes = [];
+        console.log('ℹ️ Aucune campagne (normal au premier lancement)');
+      }
+    } catch(campErr) {
+      console.warn('⚠️ Aucune campagne trouvée:', campErr);
+      STATE.campagnes = [];
+    }
+    
+    console.log('✅ Rendu de l\'interface...');
+    render();
+    console.log('✅ Chargement terminé!');
+  } catch(err) {
+    console.error('❌ Erreur lors du chargement:', err);
+    $('main-content').innerHTML='<div class="loading" style="color:#c0392b">Erreur de chargement. Vérifiez la console (F12).</div>';
   }
-  
-  // Charger campagnes
-  const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
-  const campSnap = await getDocs(collection(window.GFA.db, 'campagnes'));
-  STATE.campagnes = await Promise.all(campSnap.docs.map(async (doc) => {
-    const data = {id:doc.id, ...doc.data()};
-    // Compter vins et commandes
-    const vinsSnap = await getDocs(collection(window.GFA.db, 'campagnes', doc.id, 'vins'));
-    const cmdsSnap = await getDocs(collection(window.GFA.db, 'campagnes', doc.id, 'commandes'));
-    data.nb_vins = vinsSnap.size;
-    data.nb_commandes = cmdsSnap.size;
-    return data;
-  }));
-  STATE.campagnes.sort((a,b)=>(b.annee||0)-(a.annee||0));
-  
-  render();
 }
 
 // Exposer pour le module Firebase
