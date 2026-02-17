@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GFA Manager - Démo Interactive</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Cormorant+Garamond:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --wine-burgundy: #6B1E3C;
+            --wine-deep: #4A1228;
+            --gold: #C9A961;
+            --cream: #F8F5EF;
+            --dark: #2C1810;
+            --sage: #8B9A7E;
+            --terracotta: #C67B5C;
+        }
+
+        body {
+            font-family: 'Cormorant Garamond', serif;
+            background: var(--cream);
+            color: var(--dark);
+            overflow-x: hidden;
+        }
+
+        .grain-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+
+        #root {
+            position: relative;
+            z-index: 1;
+        }
+
+        .app-container {
+            min-height: 100vh;
+        }
+
+        /* Header avec motif décoratif */
+        .header {
+            background: linear-gradient(135deg, var(--wine-burgundy) 0%, var(--wine-deep) 100%);
+            color: var(--cream);
+            padding: 4rem 2rem 3rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255,255,255,0.03) 35px, rgba(255,255,255,0.03) 70px),
+                repeating-linear-gradient(-45deg, transparent, transparent 35px, rgba(255,255,255,0.03) 35px, rgba(255,255,255,0.03) 70px);
+            pointer-events: none;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 2;
+        }
+
+        .logo {
+            font-family: 'Playfair Display', serif;
+            font-size: 4.5rem;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+            text-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        .logo-accent {
+            color: var(--gold);
+            font-style: italic;
+        }
+
+        .tagline {
+            font-size: 1.5rem;
+            font-weight: 300;
+            opacity: 0.9;
+            letter-spacing: 0.05em;
+            animation: fadeIn 1s ease-out 0.3s backwards;
+        }
+
+        .decorative-line {
+            width: 200px;
+            height: 2px;
+            background: var(--gold);
+            margin: 1.5rem 0;
+            position: relative;
+            animation: expandWidth 0.8s ease-out 0.5s backwards;
+        }
+
+        .decorative-line::before,
+        .decorative-line::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: var(--gold);
+            border-radius: 50%;
+            top: -3px;
+        }
+
+        .decorative-line::before {
+            left: -12px;
+        }
+
+        .decorative-line::after {
+            right: -12px;
+        }
+
+        /* Navigation élégante */
+        .nav-container {
+            background: white;
+            box-shadow: 0 4px 20px rgba(107, 30, 60, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: center;
+            gap: 0;
+        }
+
+        .nav-btn {
+            flex: 1;
+            max-width: 300px;
+            padding: 1.5rem 2rem;
+            border: none;
+            background: transparent;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--wine-burgundy);
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            border-bottom: 3px solid transparent;
+        }
+
+        .nav-btn::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            width: 0;
+            height: 3px;
+            background: var(--gold);
+            transform: translateX(-50%);
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .nav-btn:hover::before {
+            width: 100%;
+        }
+
+        .nav-btn.active {
+            color: var(--wine-deep);
+            background: linear-gradient(to bottom, rgba(201, 169, 97, 0.1), transparent);
+        }
+
+        .nav-btn.active::before {
+            width: 100%;
+        }
+
+        /* Contenu principal */
+        .main-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        /* Cards avec effet papier vintage */
+        .card {
+            background: white;
+            border-radius: 2px;
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 
+                0 2px 4px rgba(107, 30, 60, 0.08),
+                0 8px 16px rgba(107, 30, 60, 0.06),
+                inset 0 0 0 1px rgba(107, 30, 60, 0.1);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, transparent 0%, rgba(201, 169, 97, 0.03) 100%);
+            pointer-events: none;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 
+                0 4px 8px rgba(107, 30, 60, 0.12),
+                0 16px 32px rgba(107, 30, 60, 0.08),
+                inset 0 0 0 1px rgba(107, 30, 60, 0.15);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(107, 30, 60, 0.1);
+        }
+
+        .card-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--wine-burgundy);
+            letter-spacing: -0.01em;
+        }
+
+        .badge {
+            padding: 0.5rem 1.2rem;
+            border-radius: 2px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .badge-success {
+            background: linear-gradient(135deg, var(--sage), #6b8a5e);
+            color: white;
+        }
+
+        .badge-warning {
+            background: linear-gradient(135deg, var(--terracotta), #b56a4e);
+            color: white;
+        }
+
+        .badge-gold {
+            background: linear-gradient(135deg, var(--gold), #b89451);
+            color: var(--wine-deep);
+        }
+
+        /* Grille de vins sophistiquée */
+        .wine-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+
+        .wine-card {
+            background: white;
+            border: 2px solid transparent;
+            border-radius: 2px;
+            padding: 2rem;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(107, 30, 60, 0.08);
+        }
+
+        .wine-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(to bottom, var(--wine-burgundy), var(--gold));
+            opacity: 0;
+            transition: opacity 0.4s;
+        }
+
+        .wine-card:hover {
+            border-color: var(--gold);
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 8px 24px rgba(107, 30, 60, 0.15);
+        }
+
+        .wine-card:hover::before {
+            opacity: 1;
+        }
+
+        .wine-card.selected {
+            border-color: var(--wine-burgundy);
+            background: linear-gradient(to bottom, rgba(107, 30, 60, 0.03), white);
+        }
+
+        .wine-card.selected::before {
+            opacity: 1;
+        }
+
+        .wine-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--wine-deep);
+            margin-bottom: 0.8rem;
+            letter-spacing: -0.01em;
+        }
+
+        .wine-description {
+            font-size: 1rem;
+            color: #666;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+            font-weight: 400;
+        }
+
+        .wine-price {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--wine-burgundy);
+            margin: 1rem 0;
+        }
+
+        .wine-price-currency {
+            font-size: 1.2rem;
+            color: var(--gold);
+            margin-left: 0.3rem;
+        }
+
+        /* Contrôles de quantité raffinés */
+        .quantity-control {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .quantity-btn {
+            width: 45px;
+            height: 45px;
+            border: 2px solid var(--wine-burgundy);
+            border-radius: 50%;
+            background: white;
+            color: var(--wine-burgundy);
+            font-size: 1.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .quantity-btn:hover {
+            background: var(--wine-burgundy);
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .quantity-btn:active {
+            transform: scale(0.95);
+        }
+
+        .quantity-display {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--wine-deep);
+            min-width: 60px;
+            text-align: center;
+        }
+
+        /* Affichage des crédits prestigieux */
+        .credits-banner {
+            background: linear-gradient(135deg, var(--wine-burgundy) 0%, var(--wine-deep) 100%);
+            color: white;
+            padding: 3rem;
+            border-radius: 2px;
+            text-align: center;
+            margin: 2rem 0;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(107, 30, 60, 0.3);
+        }
+
+        .credits-banner::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(201, 169, 97, 0.2) 0%, transparent 70%);
+            animation: rotate 20s linear infinite;
+        }
+
+        .credits-amount {
+            font-family: 'Playfair Display', serif;
+            font-size: 4.5rem;
+            font-weight: 900;
+            color: var(--gold);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            position: relative;
+            z-index: 2;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .credits-label {
+            font-size: 1.3rem;
+            font-weight: 300;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-top: 0.5rem;
+            opacity: 0.9;
+            position: relative;
+            z-index: 2;
+        }
+
+        .credits-remaining {
+            font-size: 1.1rem;
+            margin-top: 1rem;
+            opacity: 0.8;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Boutons premium */
+        .btn {
+            padding: 1.2rem 3rem;
+            border: none;
+            border-radius: 2px;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            text-transform: uppercase;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--wine-burgundy), var(--wine-deep));
+            color: white;
+            box-shadow: 0 4px 16px rgba(107, 30, 60, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(107, 30, 60, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--sage), #6b8a5e);
+            color: white;
+            box-shadow: 0 4px 16px rgba(139, 154, 126, 0.3);
+        }
+
+        .btn-gold {
+            background: linear-gradient(135deg, var(--gold), #b89451);
+            color: var(--wine-deep);
+            box-shadow: 0 4px 16px rgba(201, 169, 97, 0.4);
+        }
+
+        /* Récapitulatif élégant */
+        .summary {
+            background: linear-gradient(to bottom, rgba(248, 245, 239, 0.5), white);
+            border: 2px solid var(--gold);
+            border-radius: 2px;
+            padding: 2.5rem;
+            margin: 2rem 0;
+        }
+
+        .summary-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--wine-burgundy);
+            margin-bottom: 2rem;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 1.2rem 0;
+            border-bottom: 1px solid rgba(107, 30, 60, 0.1);
+            font-size: 1.1rem;
+        }
+
+        .summary-item:last-child {
+            border-bottom: none;
+            margin-top: 1rem;
+            padding-top: 2rem;
+            border-top: 2px solid var(--gold);
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--wine-deep);
+        }
+
+        /* Informations personnelles */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .info-item {
+            padding: 1.5rem;
+            background: linear-gradient(135deg, rgba(107, 30, 60, 0.03), rgba(201, 169, 97, 0.03));
+            border-left: 3px solid var(--wine-burgundy);
+            border-radius: 2px;
+        }
+
+        .info-label {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--wine-burgundy);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .info-value {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3rem;
+            color: var(--dark);
+            font-weight: 600;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes expandWidth {
+            from {
+                width: 0;
+            }
+            to {
+                width: 200px;
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        @keyframes rotate {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Actions bar */
+        .actions-bar {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            margin: 3rem 0;
+            flex-wrap: wrap;
+        }
+
+        /* Alertes */
+        .alert {
+            padding: 1.5rem 2rem;
+            border-radius: 2px;
+            margin: 1.5rem 0;
+            border-left: 4px solid;
+            animation: fadeIn 0.5s;
+        }
+
+        .alert-success {
+            background: linear-gradient(to right, rgba(139, 154, 126, 0.1), rgba(139, 154, 126, 0.05));
+            border-color: var(--sage);
+            color: #2d5016;
+        }
+
+        .alert-warning {
+            background: linear-gradient(to right, rgba(198, 123, 92, 0.1), rgba(198, 123, 92, 0.05));
+            border-color: var(--terracotta);
+            color: #7d3d24;
+        }
+
+        /* Stats cards admin */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, var(--wine-burgundy), var(--wine-deep));
+            color: white;
+            padding: 2.5rem;
+            border-radius: 2px;
+            text-align: center;
+            box-shadow: 0 8px 24px rgba(107, 30, 60, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, rgba(201, 169, 97, 0.2) 0%, transparent 70%);
+        }
+
+        .stat-number {
+            font-family: 'Playfair Display', serif;
+            font-size: 3.5rem;
+            font-weight: 900;
+            color: var(--gold);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            opacity: 0.9;
+        }
+
+        /* Select élégant */
+        select {
+            width: 100%;
+            padding: 1.2rem;
+            border: 2px solid rgba(107, 30, 60, 0.2);
+            border-radius: 2px;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.1rem;
+            background: white;
+            color: var(--dark);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: var(--wine-burgundy);
+            box-shadow: 0 0 0 3px rgba(107, 30, 60, 0.1);
+        }
+
+        .form-group {
+            margin: 2rem 0;
+        }
+
+        .form-label {
+            display: block;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--wine-burgundy);
+            margin-bottom: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .groupements-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        /* Ligne groupement horizontale */
+        .groupement-row {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            border: 1px solid rgba(107, 30, 60, 0.12);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .groupement-cell {
+            flex: 1;
+            padding: 1.4rem 1.6rem;
+            border-right: 1px solid rgba(107, 30, 60, 0.1);
+            min-width: 0;
+        }
+
+        .groupement-cell:last-child {
+            border-right: none;
+        }
+
+        .groupement-cell--name {
+            flex: 1.4;
+            background: linear-gradient(135deg, rgba(107, 30, 60, 0.03), transparent);
+        }
+
+        .groupement-cell--parts {
+            flex: 0.9;
+        }
+
+        .groupement-cell--associes {
+            flex: 0.8;
+        }
+
+        .groupement-cell--actions {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+            padding: 1.2rem 1.6rem;
+            background: rgba(248, 245, 239, 0.6);
+            align-items: stretch;
+        }
+
+        .btn-row {
+            padding: 0.75rem 1.4rem !important;
+            font-size: 0.85rem !important;
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        /* Identité groupement */
+        .groupement-identity {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.2rem 0 0.5rem;
+        }
+
+        .groupement-nom-bloc {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .groupement-nom {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--wine-deep);
+            letter-spacing: -0.01em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .groupement-date {
+            font-size: 0.85rem;
+            color: #999;
+            font-style: italic;
+            letter-spacing: 0.01em;
+            white-space: nowrap;
+        }
+
+        /* Parts avec sous-texte */
+        .parts-value {
+            display: flex;
+            align-items: baseline;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+        }
+
+        .parts-sub {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 0.85rem;
+            font-weight: 400;
+            color: #999;
+            white-space: nowrap;
+        }
+
+        /* ── MODAL NOUVEAU GROUPEMENT ── */
+        .modal-backdrop {
+            position: fixed; inset: 0;
+            background: rgba(44, 24, 16, 0.55);
+            z-index: 500;
+            display: flex; align-items: center; justify-content: center;
+            padding: 2rem;
+            animation: fadeIn 0.2s;
+        }
+        .modal-box {
+            background: white;
+            border-radius: 4px;
+            width: 100%; max-width: 700px;
+            box-shadow: 0 24px 64px rgba(107,30,60,0.35);
+            overflow: hidden;
+        }
+        .modal-head {
+            background: linear-gradient(135deg, var(--wine-burgundy), var(--wine-deep));
+            color: white;
+            padding: 1.8rem 2rem;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.6rem; font-weight: 700;
+        }
+        .modal-close-btn {
+            background: none; border: none; color: white;
+            font-size: 1.4rem; cursor: pointer; opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+        .modal-close-btn:hover { opacity: 1; }
+        .modal-body { padding: 2rem; }
+        .modal-foot {
+            padding: 1.5rem 2rem;
+            border-top: 1px solid rgba(107,30,60,0.1);
+            display: flex; justify-content: flex-end; gap: 1rem;
+            background: rgba(248,245,239,0.5);
+        }
+        .form-row-2 {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .fgroup { display: flex; flex-direction: column; gap: 0.5rem; }
+        .flabel {
+            font-family: 'Playfair Display', serif;
+            font-size: 0.95rem; font-weight: 600;
+            color: var(--wine-burgundy);
+            text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .finput {
+            padding: 0.9rem 1rem;
+            border: 2px solid rgba(107,30,60,0.2);
+            border-radius: 2px;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.05rem; color: var(--dark);
+            transition: border-color 0.25s;
+        }
+        .finput:focus {
+            outline: none;
+            border-color: var(--wine-burgundy);
+            box-shadow: 0 0 0 3px rgba(107,30,60,0.08);
+        }
+        .btn-secondary {
+            background: #e8e4dc; color: var(--dark);
+            box-shadow: none;
+        }
+        .btn-secondary:hover { background: #ddd8cf; }
+
+        /* ── FICHE GROUPEMENT ── */
+        .fiche-container { animation: fadeIn 0.35s; }
+        .breadcrumb {
+            display: flex; align-items: center; gap: 0.8rem;
+            margin-bottom: 2rem; font-size: 1rem; color: #888;
+        }
+        .breadcrumb-back {
+            background: none; border: none;
+            color: var(--wine-burgundy);
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1rem; font-weight: 600;
+            cursor: pointer; padding: 0;
+            transition: opacity 0.2s;
+        }
+        .breadcrumb-back:hover { opacity: 0.7; }
+        .breadcrumb-sep { color: #ccc; }
+        .breadcrumb-current { color: var(--dark); font-weight: 600; }
+
+        .fiche-header {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            margin-bottom: 2rem;
+        }
+        .fiche-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.8rem; font-weight: 900;
+            color: var(--wine-deep); letter-spacing: -0.02em;
+        }
+        .fiche-subtitle {
+            font-size: 1rem; color: #999; font-style: italic; margin-top: 0.3rem;
+        }
+        .fiche-info-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr));
+            gap: 1.2rem; margin-top: 1.5rem;
+        }
+        .fiche-info-item {
+            padding: 1.2rem 1.4rem;
+            background: linear-gradient(135deg, rgba(107,30,60,0.03), rgba(201,169,97,0.03));
+            border-left: 3px solid var(--wine-burgundy);
+            border-radius: 2px;
+        }
+        .section-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem; font-weight: 700;
+            color: var(--wine-burgundy);
+            margin-bottom: 0.5rem;
+        }
+        .section-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        .btn-sm-text {
+            padding: 0.6rem 1.4rem !important;
+            font-size: 0.9rem !important;
+        }
+
+        /* ── TABLEAU ASSOCIÉS ── */
+        .assoc-table-wrap {
+            overflow-x: auto;
+            margin-top: 0.5rem;
+            border: 1px solid rgba(107,30,60,0.1);
+            border-radius: 3px;
+        }
+        .assoc-table {
+            width: 100%; border-collapse: collapse;
+            font-size: 0.95rem;
+        }
+        .assoc-table th {
+            background: linear-gradient(to bottom, var(--wine-burgundy), var(--wine-deep));
+            color: var(--cream);
+            padding: 0.9rem 1.1rem;
+            text-align: left;
+            font-family: 'Playfair Display', serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            white-space: nowrap;
+        }
+        .assoc-table td {
+            padding: 0.85rem 1.1rem;
+            border-bottom: 1px solid rgba(107,30,60,0.07);
+            vertical-align: middle;
+        }
+        .assoc-table tr:last-child td { border-bottom: none; }
+        .assoc-table tr:hover td { background: rgba(248,245,239,0.7); }
+        .row-inactive td { opacity: 0.5; }
+        .td-bold { font-weight: 700; color: var(--wine-deep); }
+        .td-center { text-align: center; font-weight: 600; }
+        .td-nowrap { white-space: nowrap; }
+        .td-address { font-size: 0.88rem; color: #666; max-width: 200px; }
+        .td-link { color: var(--wine-burgundy); text-decoration: none; font-size: 0.88rem; }
+        .td-link:hover { text-decoration: underline; }
+        .etat-badge {
+            display: inline-block;
+            padding: 0.3rem 0.9rem;
+            border-radius: 2px;
+            font-size: 0.8rem; font-weight: 700;
+            text-transform: capitalize; letter-spacing: 0.04em;
+        }
+        .etat-bernard  { background: rgba(201,169,97,0.2);  color: #7a5a10; }
+        .etat-vigneron { background: rgba(107,30,60,0.12); color: var(--wine-deep); }
+
+        /* ── COMMENTAIRES ── */
+        .comment-area {
+            width: 100%;
+            padding: 1rem 1.2rem;
+            border: 2px solid rgba(107,30,60,0.15);
+            border-radius: 2px;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.05rem; color: var(--dark);
+            resize: vertical; min-height: 110px;
+            transition: border-color 0.25s;
+            margin-top: 1rem;
+        }
+        .comment-area:focus {
+            outline: none; border-color: var(--wine-burgundy);
+            box-shadow: 0 0 0 3px rgba(107,30,60,0.07);
+        }
+        .save-confirm {
+            color: var(--sage); font-weight: 600; font-size: 1rem;
+            animation: fadeIn 0.3s;
+        }
+
+        /* ── DOCUMENTS ── */
+        .doc-row {
+            display: flex; align-items: center; gap: 1rem;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(107,30,60,0.07);
+        }
+        .doc-row:last-child { border-bottom: none; }
+        .doc-icon { font-size: 1.5rem; flex-shrink: 0; }
+        .doc-info { flex: 1; min-width: 0; }
+        .doc-name { font-weight: 600; color: var(--dark); font-size: 1rem; }
+        .doc-date { font-size: 0.85rem; color: #999; margin-top: 0.2rem; }
+        .btn-link {
+            color: var(--wine-burgundy); font-weight: 600;
+            font-size: 0.9rem; text-decoration: none;
+            border: 1px solid rgba(107,30,60,0.25);
+            padding: 0.4rem 0.9rem; border-radius: 2px;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .btn-link:hover {
+            background: var(--wine-burgundy); color: white;
+        }
+        .empty-msg { color: #aaa; font-style: italic; font-size: 1rem; margin-top: 0.5rem; }
+
+        /* ── CATALOGUES & COMMANDES ── */
+        .two-col-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        .annees-grid { margin-top: 0.5rem; }
+        .annee-row {
+            display: flex; align-items: flex-start; gap: 1.5rem;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(107,30,60,0.07);
+        }
+        .annee-row:last-child { border-bottom: none; }
+        .annee-label {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3rem; font-weight: 700;
+            color: var(--wine-burgundy);
+            min-width: 50px;
+        }
+        .annee-links { display: flex; flex-direction: column; gap: 0.5rem; }
+        .annee-link {
+            font-size: 0.92rem; font-weight: 600;
+            text-decoration: none; padding: 0.35rem 0.9rem;
+            border-radius: 2px; transition: all 0.2s;
+            display: inline-block;
+        }
+        .annee-link--cat {
+            background: rgba(201,169,97,0.15); color: #7a5a10;
+            border: 1px solid rgba(201,169,97,0.4);
+        }
+        .annee-link--cat:hover { background: var(--gold); color: var(--wine-deep); }
+        .annee-link--cmd {
+            background: rgba(107,30,60,0.08); color: var(--wine-burgundy);
+            border: 1px solid rgba(107,30,60,0.2);
+        }
+        .annee-link--cmd:hover { background: var(--wine-burgundy); color: white; }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .two-col-grid { grid-template-columns: 1fr; }
+            .form-row-2   { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .logo {
+                font-size: 3rem;
+            }
+
+            .wine-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .nav {
+                flex-direction: column;
+            }
+
+            .nav-btn {
+                max-width: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="grain-overlay"></div>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        // ─── DONNÉES DE DÉMONSTRATION ───────────────────────────────────────
+        const INITIAL_GROUPEMENTS = [
+            {
+                id: 1,
+                nom: "Les Théories du Caveau",
+                vigneron: "Domaine Loic Durand",
+                appellation: "Haute Côte de Beaune",
+                date_creation: "15 janvier 2020",
+                nombre_total_parts: 120,
+                parts_pour_bouteille: 3,
+                actif: true,
+                commentaire: "Groupement fondé en 2020. Excellentes vendanges depuis 3 ans. Prévoir augmentation du nombre de parts pour 2025.",
+                associes: [
+                    { id:1, nom:"Dupont",  prenom:"Jean",    parts:12, adresse:"15 Rue de la Vigne, 21200 Beaune",          email:"jean.dupont@email.fr",    tel:"06 12 34 56 78", etat:"bernard",  actif:true  },
+                    { id:2, nom:"Martin",  prenom:"Sophie",  parts:9,  adresse:"22 Av. des Châteaux, 21200 Beaune",         email:"sophie.martin@email.fr",  tel:"06 23 45 67 89", etat:"vigneron", actif:true  },
+                    { id:3, nom:"Bernard", prenom:"Pierre",  parts:6,  adresse:"8 Chemin des Vignes, 21200 Beaune",         email:"pierre.bernard@email.fr", tel:"06 34 56 78 90", etat:"bernard",  actif:true  },
+                    { id:4, nom:"Rousseau",prenom:"Marie",   parts:3,  adresse:"45 Bd du Vin, 21200 Beaune",               email:"marie.rousseau@email.fr", tel:"06 45 67 89 01", etat:"vigneron", actif:false },
+                    { id:5, nom:"Leroy",   prenom:"François",parts:15, adresse:"3 Impasse du Terroir, 21700 Nuits-Saint-Georges", email:"f.leroy@email.fr",  tel:"06 56 78 90 12", etat:"bernard",  actif:true  },
+                ],
+                documents: [
+                    { id:1, nom:"Règlement intérieur 2020.pdf", date:"12/01/2020", type:"doc" },
+                    { id:2, nom:"Statuts GFA.pdf",              date:"15/01/2020", type:"doc" },
+                ],
+                catalogues: [
+                    { annee:2022, url:"#", label:"Catalogue Loic Durand 2022" },
+                    { annee:2023, url:"#", label:"Catalogue Loic Durand 2023" },
+                    { annee:2024, url:"#", label:"Catalogue Loic Durand 2024" },
+                ],
+                commandes: [
+                    { annee:2022, url:"#", label:"Commandes 2022 — 38 associés" },
+                    { annee:2023, url:"#", label:"Commandes 2023 — 40 associés" },
+                    { annee:2024, url:"#", label:"Commandes 2024 — en cours"   },
+                ],
+            },
+            {
+                id: 2,
+                nom: "La vigne aux chèvres",
+                vigneron: "Domaine Loic Durand",
+                appellation: "Haute Côte de Beaune",
+                date_creation: "10 mars 2021",
+                nombre_total_parts: 90,
+                parts_pour_bouteille: 2,
+                actif: true,
+                commentaire: "Second groupement créé en 2021. Très bonne cohésion du groupe.",
+                associes: [
+                    { id:6,  nom:"Petit",   prenom:"Luc",     parts:8,  adresse:"10 Rue du Clos, 21550 Ladoix-Serrigny",    email:"luc.petit@email.fr",    tel:"06 67 89 01 23", etat:"bernard",  actif:true },
+                    { id:7,  nom:"Moreau",  prenom:"Isabelle",parts:6,  adresse:"27 Route des Grands Crus, 21700 Vosne",    email:"i.moreau@email.fr",     tel:"06 78 90 12 34", etat:"vigneron", actif:true },
+                    { id:8,  nom:"Simon",   prenom:"Marc",    parts:4,  adresse:"5 Place du Village, 21420 Savigny",         email:"marc.simon@email.fr",   tel:"06 89 01 23 45", etat:"bernard",  actif:true },
+                ],
+                documents: [
+                    { id:3, nom:"Statuts La vigne aux chèvres.pdf", date:"10/03/2021", type:"doc" },
+                ],
+                catalogues: [
+                    { annee:2023, url:"#", label:"Catalogue Loic Durand 2023" },
+                    { annee:2024, url:"#", label:"Catalogue Loic Durand 2024" },
+                ],
+                commandes: [
+                    { annee:2023, url:"#", label:"Commandes 2023 — 38 associés" },
+                    { annee:2024, url:"#", label:"Commandes 2024 — en cours"   },
+                ],
+            },
+        ];
+
+        const DEMO_VINS = [
+            { id:1, nom:"Haute Côte de Beaune Rouge 2021", description:"Pinot Noir, élevage 12 mois fût de chêne", prix:22.00 },
+            { id:2, nom:"Haute Côte de Beaune Blanc 2022", description:"Chardonnay vif et minéral", prix:19.50 },
+            { id:3, nom:"Réserve Loic Durand 2020",        description:"Cuvée prestige, vieilles vignes", prix:34.00, stock:40 },
+            { id:4, nom:"Village 2022",                    description:"Appellation Village, belle structure", prix:16.00 },
+            { id:5, nom:"Premier Cru Les Hauts 2019",      description:"Garde 8-12 ans, grande finesse", prix:48.00, stock:25 },
+            { id:6, nom:"Bourgogne Générique 2023",        description:"Souple et fruité, à boire jeune", prix:11.50 },
+        ];
+
+        // ─── FORMULAIRE NOUVEAU GROUPEMENT ──────────────────────────────────
+        function ModalNouveauGroupement({ onClose, onSave }) {
+            const [form, setForm] = useState({
+                nom:"", vigneron:"", appellation:"", date_creation:"",
+                nombre_total_parts:"", parts_pour_bouteille:""
+            });
+            const set = (k,v) => setForm(f => ({...f, [k]:v}));
+
+            const handleSave = () => {
+                if (!form.nom || !form.vigneron || !form.appellation) return;
+                onSave({
+                    ...form,
+                    id: Date.now(),
+                    nombre_total_parts: parseInt(form.nombre_total_parts)||0,
+                    parts_pour_bouteille: parseInt(form.parts_pour_bouteille)||1,
+                    actif:true, associes:[], documents:[], catalogues:[], commandes:[],
+                    commentaire:""
+                });
+                onClose();
+            };
+
+            return (
+                <div className="modal-backdrop" onClick={onClose}>
+                    <div className="modal-box" onClick={e => e.stopPropagation()}>
+                        <div className="modal-head">
+                            <h3 className="modal-title">Nouveau Groupement</h3>
+                            <button className="modal-close-btn" onClick={onClose}>✕</button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="form-row-2">
+                                <div className="fgroup">
+                                    <label className="flabel">Nom du groupement *</label>
+                                    <input className="finput" placeholder="ex. Les Vignerons du Clos" value={form.nom} onChange={e=>set('nom',e.target.value)} />
+                                </div>
+                                <div className="fgroup">
+                                    <label className="flabel">Vigneron *</label>
+                                    <input className="finput" placeholder="ex. Domaine Loic Durand" value={form.vigneron} onChange={e=>set('vigneron',e.target.value)} />
+                                </div>
+                            </div>
+                            <div className="form-row-2">
+                                <div className="fgroup">
+                                    <label className="flabel">Appellation *</label>
+                                    <input className="finput" placeholder="ex. Haute Côte de Beaune" value={form.appellation} onChange={e=>set('appellation',e.target.value)} />
+                                </div>
+                                <div className="fgroup">
+                                    <label className="flabel">Date de création</label>
+                                    <input className="finput" placeholder="ex. 15 janvier 2024" value={form.date_creation} onChange={e=>set('date_creation',e.target.value)} />
+                                </div>
+                            </div>
+                            <div className="form-row-2">
+                                <div className="fgroup">
+                                    <label className="flabel">Nombre total de parts *</label>
+                                    <input className="finput" type="number" placeholder="ex. 120" value={form.nombre_total_parts} onChange={e=>set('nombre_total_parts',e.target.value)} />
+                                </div>
+                                <div className="fgroup">
+                                    <label className="flabel">Parts pour une bouteille *</label>
+                                    <input className="finput" type="number" placeholder="ex. 3" value={form.parts_pour_bouteille} onChange={e=>set('parts_pour_bouteille',e.target.value)} />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="modal-foot">
+                            <button className="btn btn-secondary" onClick={onClose}>Annuler</button>
+                            <button className="btn btn-gold" onClick={handleSave}>Créer le groupement</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ─── FICHE DÉTAIL GROUPEMENT ─────────────────────────────────────────
+        function FicheGroupement({ g, onBack }) {
+            const [commentaire, setCommentaire] = useState(g.commentaire);
+            const [saved, setSaved] = useState(false);
+
+            const saveComment = () => { setSaved(true); setTimeout(()=>setSaved(false),2500); };
+
+            return (
+                <div className="fiche-container">
+                    {/* Breadcrumb */}
+                    <div className="breadcrumb">
+                        <button className="breadcrumb-back" onClick={onBack}>
+                            ← Retour aux groupements
+                        </button>
+                        <span className="breadcrumb-sep">/</span>
+                        <span className="breadcrumb-current">{g.nom}</span>
+                    </div>
+
+                    {/* En-tête de la fiche */}
+                    <div className="fiche-header">
+                        <div>
+                            <h2 className="fiche-title">{g.nom}</h2>
+                            <div className="fiche-subtitle">Créé le {g.date_creation}</div>
+                        </div>
+                        <span className={`badge ${g.actif ? 'badge-success' : 'badge-warning'}`}>
+                            {g.actif ? 'Actif' : 'Inactif'}
+                        </span>
+                    </div>
+
+                    {/* Informations générales */}
+                    <div className="card">
+                        <h3 className="section-title">Informations du groupement</h3>
+                        <div className="fiche-info-grid">
+                            <div className="fiche-info-item">
+                                <div className="info-label">Vigneron</div>
+                                <div className="info-value">{g.vigneron}</div>
+                            </div>
+                            <div className="fiche-info-item">
+                                <div className="info-label">Appellation</div>
+                                <div className="info-value">{g.appellation}</div>
+                            </div>
+                            <div className="fiche-info-item">
+                                <div className="info-label">Parts totales</div>
+                                <div className="info-value parts-value">
+                                    {g.nombre_total_parts}
+                                    <span className="parts-sub">{g.parts_pour_bouteille} / bouteille</span>
+                                </div>
+                            </div>
+                            <div className="fiche-info-item">
+                                <div className="info-label">Associés</div>
+                                <div className="info-value">{g.associes.length} <span className="parts-sub">({g.associes.filter(a=>a.actif).length} actifs)</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Liste des associés */}
+                    <div className="card">
+                        <div className="section-header">
+                            <h3 className="section-title">Associés</h3>
+                            <button className="btn btn-gold btn-sm-text">+ Ajouter un associé</button>
+                        </div>
+                        <div className="assoc-table-wrap">
+                            <table className="assoc-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nom</th>
+                                        <th>Prénom</th>
+                                        <th>Parts</th>
+                                        <th>Adresse de livraison</th>
+                                        <th>Email</th>
+                                        <th>Téléphone</th>
+                                        <th>État</th>
+                                        <th>Statut</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {g.associes.map(a => (
+                                        <tr key={a.id} className={!a.actif ? 'row-inactive' : ''}>
+                                            <td className="td-bold">{a.nom}</td>
+                                            <td>{a.prenom}</td>
+                                            <td className="td-center">{a.parts}</td>
+                                            <td className="td-address">{a.adresse}</td>
+                                            <td><a href={`mailto:${a.email}`} className="td-link">{a.email}</a></td>
+                                            <td className="td-nowrap">{a.tel}</td>
+                                            <td>
+                                                <span className={`etat-badge etat-${a.etat}`}>{a.etat}</span>
+                                            </td>
+                                            <td>
+                                                <span className={`badge ${a.actif ? 'badge-success' : 'badge-warning'}`} style={{fontSize:'0.72rem',padding:'0.25rem 0.7rem'}}>
+                                                    {a.actif ? 'Actif' : 'Inactif'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Commentaires */}
+                    <div className="card">
+                        <h3 className="section-title">Commentaires</h3>
+                        <textarea
+                            className="comment-area"
+                            value={commentaire}
+                            onChange={e => setCommentaire(e.target.value)}
+                            placeholder="Ajoutez vos notes et commentaires sur ce groupement..."
+                            rows={4}
+                        />
+                        <div style={{display:'flex', alignItems:'center', gap:'1rem', marginTop:'1rem'}}>
+                            <button className="btn btn-primary btn-sm-text" onClick={saveComment}>Enregistrer</button>
+                            {saved && <span className="save-confirm">✓ Sauvegardé</span>}
+                        </div>
+                    </div>
+
+                    {/* Deux colonnes : Documents + Liens annuels */}
+                    <div className="two-col-grid">
+                        {/* Documents */}
+                        <div className="card">
+                            <div className="section-header">
+                                <h3 className="section-title">Documents</h3>
+                                <button className="btn btn-gold btn-sm-text">+ Ajouter</button>
+                            </div>
+                            {g.documents.length === 0
+                                ? <p className="empty-msg">Aucun document</p>
+                                : g.documents.map(d => (
+                                    <div key={d.id} className="doc-row">
+                                        <span className="doc-icon">📄</span>
+                                        <div className="doc-info">
+                                            <div className="doc-name">{d.nom}</div>
+                                            <div className="doc-date">{d.date}</div>
+                                        </div>
+                                        <a href={d.url || '#'} className="btn-link">Télécharger</a>
+                                    </div>
+                                ))
+                            }
+                        </div>
+
+                        {/* Catalogues & Commandes */}
+                        <div className="card">
+                            <h3 className="section-title">Catalogues & Commandes par année</h3>
+                            <div className="annees-grid">
+                                {[...new Set([...g.catalogues.map(c=>c.annee), ...g.commandes.map(c=>c.annee)])].sort((a,b)=>b-a).map(annee => {
+                                    const cat = g.catalogues.find(c=>c.annee===annee);
+                                    const cmd = g.commandes.find(c=>c.annee===annee);
+                                    return (
+                                        <div key={annee} className="annee-row">
+                                            <div className="annee-label">{annee}</div>
+                                            <div className="annee-links">
+                                                {cat && <a href={cat.url} className="annee-link annee-link--cat">📋 {cat.label}</a>}
+                                                {cmd && <a href={cmd.url} className="annee-link annee-link--cmd">🛒 {cmd.label}</a>}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ─── VUE ADMINISTRATION ──────────────────────────────────────────────
+        function AdminView() {
+            const [groupements, setGroupements] = useState(INITIAL_GROUPEMENTS);
+            const [showModal, setShowModal]     = useState(false);
+            const [ficheId,   setFicheId]       = useState(null);
+
+            const ficheGroupement = ficheId !== null ? groupements.find(g=>g.id===ficheId) : null;
+
+            const handleSaveGroupement = (newG) => {
+                setGroupements(prev => [...prev, newG]);
+            };
+
+            if (ficheGroupement) {
+                return <FicheGroupement g={ficheGroupement} onBack={() => setFicheId(null)} />;
+            }
+
+            return (
+                <div>
+                    {showModal && (
+                        <ModalNouveauGroupement
+                            onClose={() => setShowModal(false)}
+                            onSave={handleSaveGroupement}
+                        />
+                    )}
+                    <div className="card">
+                        <div className="card-header">
+                            <h2 className="card-title">Groupements Actifs</h2>
+                            <button className="btn btn-gold" onClick={() => setShowModal(true)}>
+                                + Nouveau Groupement
+                            </button>
+                        </div>
+                        <div className="groupements-list">
+                            {groupements.map(g => (
+                                <GroupementRow
+                                    key={g.id}
+                                    g={g}
+                                    onDetail={() => setFicheId(g.id)}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function GroupementRow({ g, onDetail }) {
+            return (
+                <div className="groupement-row">
+                    <div className="groupement-cell groupement-cell--name">
+                        <div className="info-label">Groupement</div>
+                        <div className="groupement-nom">{g.nom}</div>
+                        <div className="groupement-date">Créé le {g.date_creation}</div>
+                    </div>
+                    <div className="groupement-cell">
+                        <div className="info-label">Vigneron</div>
+                        <div className="info-value">{g.vigneron}</div>
+                    </div>
+                    <div className="groupement-cell">
+                        <div className="info-label">Appellation</div>
+                        <div className="info-value">{g.appellation}</div>
+                    </div>
+                    <div className="groupement-cell groupement-cell--parts">
+                        <div className="info-label">Parts totales</div>
+                        <div className="info-value parts-value">
+                            {g.nombre_total_parts}
+                            <span className="parts-sub">{g.parts_pour_bouteille} / bouteille</span>
+                        </div>
+                    </div>
+                    <div className="groupement-cell groupement-cell--associes">
+                        <div className="info-label">Associés</div>
+                        <div className="info-value">
+                            {g.associes ? g.associes.length : g.nb_associes}&nbsp;
+                            <span className="badge badge-success" style={{fontSize:'0.75rem',padding:'0.3rem 0.8rem'}}>
+                                {g.actif ? 'Actif' : 'Inactif'}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="groupement-cell groupement-cell--actions">
+                        <button className="btn btn-primary btn-row" onClick={onDetail}>Voir Détails</button>
+                        <button className="btn btn-success btn-row">Nouvelle Campagne</button>
+                    </div>
+                </div>
+            );
+        }
+
+        // ─── VUE ESPACE ASSOCIÉ ──────────────────────────────────────────────
+        function AssocieView() {
+            const [cart, setCart]         = useState({});
+            const [modeRecup, setModeRecup] = useState('bernard');
+            const [alert, setAlert]       = useState(null);
+            const associe  = { prenom:"Jean", nom:"Dupont", parts:12, type_retrait:"bernard" };
+            const groupement = INITIAL_GROUPEMENTS[0];
+            const creditsTotal = (associe.parts / groupement.parts_pour_bouteille) * 22.00;
+
+            const calculateUsedCredits = () =>
+                Object.entries(cart).reduce((t,[vid,qty]) => {
+                    const v = DEMO_VINS.find(v=>v.id===parseInt(vid));
+                    return t + (v ? v.prix*qty : 0);
+                }, 0);
+
+            const changeQuantity = (vinId, delta) => {
+                const currentQty = cart[vinId] || 0;
+                const newQty = Math.max(0, currentQty + delta);
+                const vin = DEMO_VINS.find(v=>v.id===vinId);
+                const used = calculateUsedCredits();
+                if (used + (newQty-currentQty)*vin.prix > creditsTotal) {
+                    setAlert({msg:"Crédits insuffisants", type:"warning"});
+                    setTimeout(()=>setAlert(null),3000); return;
+                }
+                if (vin.stock && newQty > vin.stock) {
+                    setAlert({msg:"Stock limité atteint", type:"warning"});
+                    setTimeout(()=>setAlert(null),3000); return;
+                }
+                setCart(c => { const n={...c}; if(newQty===0) delete n[vinId]; else n[vinId]=newQty; return n; });
+            };
+
+            const saveOrder = (validate) => {
+                const used = calculateUsedCredits();
+                if (used===0) { setAlert({msg:"Sélectionnez au moins une bouteille",type:"warning"}); setTimeout(()=>setAlert(null),3000); return; }
+                setAlert({ msg: validate ? "✓ Commande validée ! Un email de confirmation vous sera envoyé." : "💾 Brouillon sauvegardé.", type:"success" });
+                setTimeout(()=>setAlert(null),4000);
+            };
+
+            const used      = calculateUsedCredits();
+            const remaining = creditsTotal - used;
+
+            return (
+                <div>
+                    {alert && <div className={`alert alert-${alert.type}`}>{alert.msg}</div>}
+                    <div className="card">
+                        <h2 className="card-title">Vos Informations</h2>
+                        <div className="info-grid">
+                            <div className="info-item"><div className="info-label">Nom</div><div className="info-value">{associe.prenom} {associe.nom}</div></div>
+                            <div className="info-item"><div className="info-label">Groupement</div><div className="info-value">{groupement.nom}</div></div>
+                            <div className="info-item"><div className="info-label">Vigneron</div><div className="info-value">{groupement.vigneron}</div></div>
+                            <div className="info-item"><div className="info-label">Vos parts</div><div className="info-value">{associe.parts} parts</div></div>
+                            <div className="info-item"><div className="info-label">Campagne</div><div className="info-value">2024</div></div>
+                        </div>
+                    </div>
+                    <div className="credits-banner">
+                        <div className="credits-amount">{creditsTotal.toFixed(2)} €</div>
+                        <div className="credits-label">Crédits disponibles</div>
+                        <div className="credits-remaining">Crédits restants : <strong>{remaining.toFixed(2)} €</strong></div>
+                    </div>
+                    <div className="card">
+                        <h2 className="card-title">Catalogue des Vins 2024</h2>
+                        <div className="wine-grid">
+                            {DEMO_VINS.map(vin => (
+                                <div key={vin.id} className={`wine-card ${cart[vin.id] ? 'selected' : ''}`}>
+                                    <h3 className="wine-name">{vin.nom}</h3>
+                                    <p className="wine-description">{vin.description}</p>
+                                    <div className="wine-price">{vin.prix.toFixed(2)}<span className="wine-price-currency">€</span></div>
+                                    {vin.stock && <div style={{fontSize:'0.9rem',color:'var(--terracotta)',marginTop:'0.5rem'}}>Stock limité : {vin.stock} bouteilles</div>}
+                                    <div className="quantity-control">
+                                        <button className="quantity-btn" onClick={()=>changeQuantity(vin.id,-1)}>−</button>
+                                        <div className="quantity-display">{cart[vin.id]||0}</div>
+                                        <button className="quantity-btn" onClick={()=>changeQuantity(vin.id,1)}>+</button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    {Object.keys(cart).length > 0 && (
+                        <div className="summary">
+                            <h3 className="summary-title">Récapitulatif</h3>
+                            {Object.entries(cart).map(([vid,qty]) => {
+                                const v = DEMO_VINS.find(v=>v.id===parseInt(vid));
+                                return <div key={vid} className="summary-item"><span>{v.nom} × {qty}</span><span>{(v.prix*qty).toFixed(2)} €</span></div>;
+                            })}
+                            <div className="summary-item"><span>TOTAL</span><span>{used.toFixed(2)} € / {creditsTotal.toFixed(2)} €</span></div>
+                        </div>
+                    )}
+                    <div className="form-group">
+                        <label className="form-label">Mode de récupération</label>
+                        <select value={modeRecup} onChange={e=>setModeRecup(e.target.value)}>
+                            <option value="bernard">Bernard</option>
+                            <option value="vigneron">Vigneron</option>
+                        </select>
+                    </div>
+                    <div className="actions-bar">
+                        <button className="btn btn-primary" onClick={()=>saveOrder(false)}>💾 Sauvegarder en Brouillon</button>
+                        <button className="btn btn-success" onClick={()=>saveOrder(true)}>✓ Valider ma Commande</button>
+                    </div>
+                </div>
+            );
+        }
+
+        // ─── APP RACINE ──────────────────────────────────────────────────────
+        function App() {
+            const [activeTab, setActiveTab] = useState('admin');
+            return (
+                <div className="app-container">
+                    <header className="header">
+                        <div className="header-content">
+                            <h1 className="logo"><span className="logo-accent">GFA</span> Manager</h1>
+                            <div className="decorative-line"></div>
+                            <p className="tagline">Gestion des Groupements Fonciers Agricoles</p>
+                        </div>
+                    </header>
+                    <nav className="nav-container">
+                        <div className="nav">
+                            <button className={`nav-btn ${activeTab==='admin'?'active':''}`} onClick={()=>setActiveTab('admin')}>Administration</button>
+                            <button className={`nav-btn ${activeTab==='espace-associe'?'active':''}`} onClick={()=>setActiveTab('espace-associe')}>Espace Associé</button>
+                        </div>
+                    </nav>
+                    <main className="main-content">
+                        {activeTab==='admin'         && <AdminView />}
+                        {activeTab==='espace-associe' && <AssocieView />}
+                    </main>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
