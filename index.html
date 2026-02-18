@@ -535,9 +535,16 @@ function el(tag, attrs={}, ...children){
   children.forEach(c=>{ if(c!=null) e.append(typeof c==='string'?document.createTextNode(c):c); });
   return e;
 }
-function html(tag, content, cls=''){
+function html(tag, content, cls='', attrs={}){
   const e = document.createElement(tag);
-  e.className=cls; e.innerHTML=content; return e;
+  e.className=cls;
+  e.innerHTML=content;
+  for(const [k,v] of Object.entries(attrs)){
+    if(k==='style') e.setAttribute('style',v);
+    else if(k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(),v);
+    else e.setAttribute(k,v);
+  }
+  return e;
 }
 function toast(msg, err=false){
   const t=$('toast'); t.textContent=msg; t.className='toast'+(err?' toast-err':'');
@@ -639,7 +646,7 @@ window.render = render;
 // ════════════════════════════════════════════════════════════════
 //  VUE DÉTAIL CAMPAGNE
 // ════════════════════════════════════════════════════════════════
-async function renderDetailCampagne(c){
+function renderDetailCampagne(c){
   const wrap=el('div');
   
   // Breadcrumb
@@ -655,11 +662,13 @@ async function renderDetailCampagne(c){
   if(c.date_fin) hdr.appendChild(html('div',`Clôture : ${c.date_fin}`,'',{style:'font-size:.95rem;color:#999;font-style:italic;margin-top:.3rem'}));
   wrap.appendChild(hdr);
   
-  // Chargement des données
-  wrap.appendChild(html('div','Chargement des données...','loading'));
+  // Zone de chargement
+  const loadingDiv = el('div',{class:'loading'});
+  loadingDiv.textContent = 'Chargement des données...';
+  wrap.appendChild(loadingDiv);
   
   // Charger les données de manière asynchrone
-  setTimeout(async () => {
+  (async () => {
     try {
       const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
       
@@ -672,10 +681,8 @@ async function renderDetailCampagne(c){
       const vins = vinsSnap.docs.map(d=>({id:d.id, ...d.data()}));
       const commandes = cmdsSnap.docs.map(d=>({id:d.id, ...d.data()}));
       
-      // Recréer le contenu
-      wrap.innerHTML='';
-      wrap.appendChild(bc);
-      wrap.appendChild(hdr);
+      // Retirer le loading
+      loadingDiv.remove();
       
       // Carte infos
       const cardInfo=el('div',{class:'card'});
@@ -697,12 +704,14 @@ async function renderDetailCampagne(c){
         const tbodyV=el('tbody');
         vins.forEach(v=>{
           const groupement = STATE.groupements.find(g=>g.id===v.groupement_id);
-          tbodyV.innerHTML+=`<tr>
+          const tr = el('tr');
+          tr.innerHTML = `
             <td class="td-b">${esc(v.nom)}</td>
             <td style="font-family:'Playfair Display',serif;font-weight:700;color:var(--burg)">${v.prix} €</td>
             <td>${v.stock||'Illimité'}</td>
             <td>${groupement?esc(groupement.nom):'—'}</td>
-          </tr>`;
+          `;
+          tbodyV.appendChild(tr);
         });
         tableV.appendChild(tbodyV);
         cardVins.appendChild(tableV);
@@ -735,7 +744,8 @@ async function renderDetailCampagne(c){
             return v?`${v.nom} ×${qty}`:'';
           }).filter(Boolean).join(', ');
           
-          tbodyC.innerHTML+=`<tr>
+          const tr = el('tr');
+          tr.innerHTML = `
             <td class="td-b">${associe?`${esc(associe.prenom)} ${esc(associe.nom)}`:'—'}</td>
             <td class="td-sm">${groupement?esc(groupement.nom):'—'}</td>
             <td>${cmd.mode_recup||'—'}</td>
@@ -743,7 +753,8 @@ async function renderDetailCampagne(c){
             <td style="font-family:'Playfair Display',serif;font-weight:700;color:var(--burg)">${total} €</td>
             <td class="td-sm">${detail}</td>
             <td style="font-size:.82rem;color:#888">${cmd.date_maj?new Date(cmd.date_maj).toLocaleDateString('fr-FR'):'—'}</td>
-          </tr>`;
+          `;
+          tbodyC.appendChild(tr);
         });
         tableC.appendChild(tbodyC);
         cardCmds.appendChild(tableC);
@@ -752,9 +763,10 @@ async function renderDetailCampagne(c){
       
     } catch(err){
       console.error('Erreur chargement campagne:', err);
-      wrap.innerHTML='<div class="loading" style="color:#c0392b">Erreur de chargement.</div>';
+      loadingDiv.textContent = 'Erreur de chargement.';
+      loadingDiv.style.color = '#c0392b';
     }
-  }, 0);
+  })();
   
   return wrap;
 }
