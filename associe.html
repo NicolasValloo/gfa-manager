@@ -284,7 +284,7 @@ body{font-family:'Cormorant Garamond',serif;background:var(--cream);color:var(--
 <script>
 // ════════════════════════════ ÉTAT ═══════════════════════════
 let ASSOC=null, GROUPT=null, CAMPAGNES=[], CAMP=null, VINS=[], COMMANDES=[], CMD=null;
-let PANIER={}, MODE='bernard', TAB='campagne';
+let PANIER={}, MODE='vigneron', TAB='campagne';
 let CAMPAGNE_COMMANDE=null; // Campagne actuellement en cours de commande
 
 // Fonction pour charger une campagne et passer en mode commande
@@ -302,10 +302,10 @@ async function chargerCampagne(campagneId) {
   CMD = COMMANDES.find(c=>c.campagne_id===campagne.id && c.groupement_id===GROUPT.id) || null;
   if(CMD) {
     PANIER = CMD.panier || {};
-    MODE = CMD.mode_recup || 'bernard';
+    MODE = CMD.mode_recup || 'vigneron';
   } else {
     PANIER = {};
-    MODE = 'bernard';
+    MODE = 'vigneron';
   }
   
   TAB = 'commander';
@@ -346,7 +346,7 @@ window.addEventListener('api:ready', async ()=>{
       console.log('✅ Vins chargés:', VINS.length);
       // Chercher la commande de cette campagne
       CMD  = COMMANDES.find(c=>c.campagne_id===CAMP.id && c.groupement_id===GROUPT.id)||null;
-      if (CMD) { PANIER=CMD.panier||{}; MODE=CMD.mode_recup||'bernard'; }
+      if (CMD) { PANIER=CMD.panier||{}; MODE=CMD.mode_recup||'vigneron'; }
     }
     
     document.getElementById('tabs-nav').style.display='block';
@@ -460,7 +460,7 @@ function rCommander(){
   <div id="az"></div>
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.3rem">
-      <div class="ctitle" style="margin-bottom:0">Catalogue ${CAMP.annee||''}</div>
+      <div class="ctitle" style="margin-bottom:0">Catalogue ${CAMP.annee||''} — ${e(GROUPT.vigneron||'')}</div>
       <span class="badge b-open">Campagne ouverte</span>
     </div>`;
 
@@ -477,7 +477,7 @@ function rCommander(){
         ${v.stock?`<div class="wstock">Stock limité : ${v.stock} bouteilles</div>`:''}
         <div class="qty">
           <button class="qb" data-id="${v.id}" data-d="-1"${q===0?' disabled':''}>−</button>
-          <div class="qn">${q}</div>
+          <input type="number" min="0" ${v.stock?`max="${v.stock}"`:''} value="${q}" class="qinput" data-id="${v.id}" style="width:60px;text-align:center;border:1px solid rgba(107,30,60,.2);border-radius:2px;padding:.3rem;font-size:1rem;font-weight:600">
           <button class="qb" data-id="${v.id}" data-d="1"${mx?' disabled':''}>+</button>
         </div>
       </div>`;
@@ -505,8 +505,8 @@ function rCommander(){
   h+=`<div class="card">
     <div class="ctitle" style="margin-bottom:.7rem">Mode de récupération</div>
     <div class="modes">
-      <div class="mopt${MODE==='bernard'?' on':''}" data-m="bernard">🏠 Bernard</div>
       <div class="mopt${MODE==='vigneron'?' on':''}" data-m="vigneron">🍷 Vigneron</div>
+      <div class="mopt${MODE==='bernard'?' on':''}" data-m="bernard">🏠 Bernard</div>
     </div>
   </div>
   <div class="acts">
@@ -616,14 +616,39 @@ function rHisto(){
 
 // ════════════════════════ BIND EVENTS ══════════════════════════
 function bind(){
+  // Boutons +/-
   document.querySelectorAll('.qb').forEach(b=>b.addEventListener('click',()=>{
     if(b.disabled)return; chgQty(b.dataset.id,parseInt(b.dataset.d));
   }));
+  
+  // Input quantité direct
+  document.querySelectorAll('.qinput').forEach(inp=>inp.addEventListener('change',()=>{
+    const id=inp.dataset.id;
+    const val=parseInt(inp.value)||0;
+    const v=VINS.find(x=>x.id===id);
+    if(!v)return;
+    
+    // Vérifier le stock max si défini
+    if(v.stock && val>v.stock){
+      al(`Stock limité à ${v.stock} bouteilles.`,false);
+      inp.value=v.stock;
+      PANIER[id]=v.stock;
+    } else if(val<=0){
+      delete PANIER[id];
+    } else {
+      PANIER[id]=val;
+    }
+    render();
+  }));
+  
+  // Modes de récupération
   document.querySelectorAll('.mopt').forEach(o=>o.addEventListener('click',()=>{
     MODE=o.dataset.m;
     document.querySelectorAll('.mopt').forEach(x=>x.classList.remove('on'));
     o.classList.add('on');
   }));
+  
+  // Boutons sauvegarde/validation
   const bd=document.getElementById('b-draft');
   const bv=document.getElementById('b-valid');
   const bm=document.getElementById('b-modif');
@@ -640,7 +665,7 @@ function bind(){
 function chgQty(id,d){
   const v=VINS.find(x=>x.id===id); if(!v)return;
   const cur=PANIER[id]||0, nw=Math.max(0,cur+d);
-  if(d>0&&calcUtil()+v.prix>calcTot()+.001){al('Crédits insuffisants pour ajouter cette bouteille.',false);return;}
+  // Autoriser le dépassement des crédits (suppression de la vérification)
   if(d>0&&v.stock&&nw>v.stock){al('Stock limité atteint.',false);return;}
   if(nw===0)delete PANIER[id]; else PANIER[id]=nw;
   render();
