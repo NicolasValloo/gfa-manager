@@ -734,27 +734,75 @@ function renderDetailCampagne(c){
         const tbodyA=el('tbody');
         associesConcernes.forEach(a=>{
           const cmd = commandes.find(c=>c.associe_id===a.id && c.groupement_id===a.groupement.id);
-          const statut = cmd ? (cmd.validee ? '<span class="badge badge-success">Commandé</span>' : '<span class="badge badge-warning">Brouillon</span>') : '<span style="color:#aaa;font-style:italic">En attente</span>';
           const lien = `${location.origin}${location.pathname}?token=${a.token}`.replace('index.html', 'associe.html');
           
           const tr = el('tr');
-          tr.innerHTML = `
-            <td class="td-b">${esc(a.nom)}</td>
-            <td>${esc(a.prenom)}</td>
-            <td class="td-sm">${esc(a.groupement.nom)}</td>
-            <td><a href="mailto:${esc(a.email)}" class="td-ml">${esc(a.email)}</a></td>
-            <td>${statut}</td>
-            <td style="white-space:nowrap">
-              <button class="btn btn-sm" style="background:var(--gold);color:var(--deep);padding:.4rem .7rem;margin-right:.4rem" 
-                onclick="window.open('mailto:${esc(a.email)}?subject=${encodeURIComponent('Votre accès GFA Manager — '+a.groupement.nom)}&body=${encodeURIComponent('Bonjour '+a.prenom+',\\n\\nVous êtes associé(e) au groupement \"'+a.groupement.nom+'\" ('+a.groupement.vigneron+').\\n\\nRetrouvez votre espace personnel via le lien ci-dessous :\\n'+lien+'\\n\\nCe lien vous est personnel. Conservez-le précieusement.')}', '_blank')">
-                ✉️ Email
-              </button>
-              <button class="btn btn-sm" style="background:var(--burg);color:white;padding:.4rem .7rem" 
-                onclick="navigator.clipboard.writeText('${lien}').then(()=>{const b=event.target;const t=b.textContent;b.textContent='✓ Copié';setTimeout(()=>b.textContent=t,2000)})">
-                📋 Copier
-              </button>
-            </td>
-          `;
+          
+          // Cellule Nom
+          const tdNom = el('td',{class:'td-b'});
+          tdNom.textContent = a.nom;
+          tr.appendChild(tdNom);
+          
+          // Cellule Prénom
+          const tdPrenom = el('td');
+          tdPrenom.textContent = a.prenom;
+          tr.appendChild(tdPrenom);
+          
+          // Cellule Groupement
+          const tdGroup = el('td',{class:'td-sm'});
+          tdGroup.textContent = a.groupement.nom;
+          tr.appendChild(tdGroup);
+          
+          // Cellule Email
+          const tdEmail = el('td');
+          const mailLink = el('a',{href:`mailto:${a.email}`,class:'td-ml'});
+          mailLink.textContent = a.email;
+          tdEmail.appendChild(mailLink);
+          tr.appendChild(tdEmail);
+          
+          // Cellule Statut
+          const tdStatut = el('td');
+          if(cmd){
+            const badge = el('span',{class:`badge ${cmd.validee?'badge-success':'badge-warning'}`});
+            badge.textContent = cmd.validee ? 'Commandé' : 'Brouillon';
+            tdStatut.appendChild(badge);
+          } else {
+            tdStatut.innerHTML = '<span style="color:#aaa;font-style:italic">En attente</span>';
+          }
+          tr.appendChild(tdStatut);
+          
+          // Cellule Actions
+          const tdActions = el('td',{style:'white-space:nowrap'});
+          
+          // Bouton Email
+          const btnEmail = el('button',{
+            class:'btn btn-sm',
+            style:'background:var(--gold);color:var(--deep);padding:.4rem .7rem;margin-right:.4rem',
+            onClick:()=>{
+              const sujet = encodeURIComponent(`Votre accès GFA Manager — ${a.groupement.nom}`);
+              const corps = encodeURIComponent(`Bonjour ${a.prenom},\n\nVous êtes associé(e) au groupement "${a.groupement.nom}" (${a.groupement.vigneron}).\n\nRetrouvez votre espace personnel via le lien ci-dessous :\n${lien}\n\nCe lien vous est personnel. Conservez-le précieusement.`);
+              window.open(`mailto:${a.email}?subject=${sujet}&body=${corps}`, '_blank');
+            }
+          });
+          btnEmail.textContent = '✉️ Email';
+          tdActions.appendChild(btnEmail);
+          
+          // Bouton Copier
+          const btnCopy = el('button',{
+            class:'btn btn-sm',
+            style:'background:var(--burg);color:white;padding:.4rem .7rem',
+            onClick:(e)=>{
+              navigator.clipboard.writeText(lien).then(()=>{
+                const original = e.target.textContent;
+                e.target.textContent = '✓ Copié';
+                setTimeout(()=>{ e.target.textContent = original; }, 2000);
+              });
+            }
+          });
+          btnCopy.textContent = '📋 Copier';
+          tdActions.appendChild(btnCopy);
+          
+          tr.appendChild(tdActions);
           tbodyA.appendChild(tr);
         });
         tableA.appendChild(tbodyA);
