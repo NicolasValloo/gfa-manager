@@ -50,6 +50,14 @@ async function getCampagneActive(vigneron) {
   return {id:snap.docs[0].id, ...snap.docs[0].data()};
 }
 
+// Charge TOUTES les campagnes d'un vigneron (actives et passées)
+async function getCampagnesVigneron(vigneron) {
+  const snap = await getDocs(
+    query(collection(db, "campagnes"), where("vigneron","==",vigneron))
+  );
+  return snap.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(b.annee||0)-(a.annee||0));
+}
+
 // Charge les vins de la campagne filtrés par groupement
 async function getVinsCampagne(campagneId, groupementId) {
   const snap = await getDocs(
@@ -110,7 +118,7 @@ async function saveCommande(campagneId, associeId, groupementId, annee, panier, 
   }
 }
 
-window.ASSOC_API = { findAssocieByToken, getCampagneActive, getVinsCampagne, getCommandes, saveCommande };
+window.ASSOC_API = { findAssocieByToken, getCampagneActive, getCampagnesVigneron, getVinsCampagne, getCommandes, saveCommande };
 window.dispatchEvent(new Event('api:ready'));
 </script>
 
@@ -263,7 +271,7 @@ body{font-family:'Cormorant Garamond',serif;background:var(--cream);color:var(--
 
 <nav class="tabs" id="tabs-nav" style="display:none">
   <div class="tabs-inner">
-    <button class="tab active" data-tab="campagne">🍷 Campagne en cours</button>
+    <button class="tab active" data-tab="campagne">🍷 Campagnes</button>
     <button class="tab" data-tab="infos">👤 Mes informations</button>
     <button class="tab" data-tab="historique">📋 Historique</button>
   </div>
@@ -277,6 +285,32 @@ body{font-family:'Cormorant Garamond',serif;background:var(--cream);color:var(--
 // ════════════════════════════ ÉTAT ═══════════════════════════
 let ASSOC=null, GROUPT=null, CAMPAGNES=[], CAMP=null, VINS=[], COMMANDES=[], CMD=null;
 let PANIER={}, MODE='bernard', TAB='campagne';
+let CAMPAGNE_COMMANDE=null; // Campagne actuellement en cours de commande
+
+// Fonction pour charger une campagne et passer en mode commande
+async function chargerCampagne(campagneId) {
+  const campagne = CAMPAGNES.find(c=>c.id===campagneId);
+  if(!campagne) return;
+  
+  CAMPAGNE_COMMANDE = campagne;
+  CAMP = campagne;
+  
+  // Charger les vins
+  VINS = await window.ASSOC_API.getVinsCampagne(campagne.id, GROUPT.id);
+  
+  // Charger la commande existante si elle existe
+  CMD = COMMANDES.find(c=>c.campagne_id===campagne.id && c.groupement_id===GROUPT.id) || null;
+  if(CMD) {
+    PANIER = CMD.panier || {};
+    MODE = CMD.mode_recup || 'bernard';
+  } else {
+    PANIER = {};
+    MODE = 'bernard';
+  }
+  
+  TAB = 'commander';
+  render();
+}
 
 // ════════════════════════ INIT ═══════════════════════════════
 window.addEventListener('api:ready', async ()=>{
@@ -289,11 +323,14 @@ window.addEventListener('api:ready', async ()=>{
     if (!ASSOC.actif) return err('Accès désactivé','Votre accès a été désactivé. Contactez votre administrateur.');
     document.getElementById('hdr-name').textContent = ASSOC.prenom+' '+ASSOC.nom;
 
-    // Charger la campagne active du vigneron + toutes les commandes de l'associé
-    [CAMP, COMMANDES] = await Promise.all([
-      window.ASSOC_API.getCampagneActive(GROUPT.vigneron),
+    // Charger TOUTES les campagnes du vigneron + toutes les commandes de l'associé
+    [CAMPAGNES, COMMANDES] = await Promise.all([
+      window.ASSOC_API.getCampagnesVigneron(GROUPT.vigneron),
       window.ASSOC_API.getCommandes(ASSOC.id)
     ]);
+    
+    // Trouver la campagne active
+    CAMP = CAMPAGNES.find(c=>c.actif) || null;
     
     if (CAMP) {
       // Charger les vins filtrés par groupement
@@ -318,6 +355,7 @@ window.addEventListener('api:ready', async ()=>{
 function render(){
   const m=document.getElementById('main');
   if(TAB==='campagne') m.innerHTML=rCampagne();
+  else if(TAB==='commander') m.innerHTML=rCommander();
   else if(TAB==='infos') m.innerHTML=rInfos();
   else m.innerHTML=rHisto();
   bind();
@@ -325,11 +363,69 @@ function render(){
 
 // ─── ONGLET CAMPAGNE ─────────────────────────────────────────
 function rCampagne(){
-  if(!CAMP) return `<div class="card"><div class="no-camp">
+  if(!CAMPAGNES || !CAMPAGNES.length) return `<div class="card"><div class="no-camp">
     <div class="ic">🍇</div>
-    <h3>Aucune campagne en cours</h3>
-    <p>Votre administrateur n'a pas encore ouvert de campagne pour cette année.<br>Revenez bientôt !</p>
+    <h3>Aucune campagne</h3>
+    <p>Votre administrateur n'a pas encore créé de campagne.<br>Revenez bientôt !</p>
   </div></div>`;
+
+  let h = '';
+  
+  // Afficher chaque campagne
+  CAMPAGNES.forEach(async campagne => {
+    const cmd = COMMANDES.find(c=>c.campagne_id===campagne.id && c.groupement_id===GROUPT.id);
+    const estActive = campagne.actif;
+    
+    h += `<div class="card" style="margin-bottom:1.5rem;${!estActive?'opacity:0.8;':''}}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <div class="ctitle" style="margin-bottom:0">Campagne ${campagne.annee}</div>
+        <div style="display:flex;align-items:center;gap:.5rem">
+          ${campagne.date_fin?`<span style="font-size:.85rem;color:#888">Clôture : ${campagne.date_fin}</span>`:''}
+          <span class="badge ${estActive?'b-open':'badge-warning'}">${estActive?'Ouverte':'Clôturée'}</span>
+        </div>
+      </div>`;
+    
+    // Si commande validée pour cette campagne
+    if(cmd?.validee) {
+      const lignes=Object.entries(cmd.panier||{}).filter(([,q])=>q>0);
+      const tot=lignes.reduce((s,[id,q])=>s+(cmd.prix_snapshot?.[id]||0)*q,0);
+      h += `<div class="val-ok" style="margin:0">
+        <h3 style="font-size:1.1rem;margin-bottom:.5rem">✓ Commande validée</h3>
+        <p style="font-size:.9rem;margin-bottom:.8rem">Votre commande a bien été enregistrée.</p>
+        <div style="background:white;padding:1rem;border-radius:3px">`;
+      lignes.forEach(([id,q])=>{
+        const nom=cmd.noms_snapshot?.[id]||'Vin';
+        const px=cmd.prix_snapshot?.[id]||0;
+        h+=`<div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid #eee">
+          <span>${e(nom)} × ${q}</span><span style="font-weight:600">${f(px*q)} €</span></div>`;
+      });
+      h+=`<div style="display:flex;justify-content:space-between;padding:.5rem 0;margin-top:.5rem;font-weight:700;color:var(--burg)">
+        <span>Total</span><span>${f(tot)} €</span></div>
+        <div style="margin-top:.5rem;font-size:.85rem;color:#888">Mode : ${e(cmd.mode_recup||'—')}</div>
+      </div></div>`;
+      
+    } else if(estActive) {
+      // Campagne active sans commande validée - permettre la commande
+      h += `<p style="color:#888;font-size:.95rem;margin-bottom:1rem">Cette campagne est ouverte. Cliquez ci-dessous pour passer votre commande.</p>
+        <button class="btn btn-p" onclick="chargerCampagne('${campagne.id}')">🍷 Commander</button>`;
+      
+    } else {
+      // Campagne clôturée sans commande
+      h += `<p style="color:#aaa;font-style:italic">Cette campagne est clôturée. ${cmd?'Vous aviez un brouillon non validé.':'Vous n\'avez pas passé de commande.'}</p>`;
+    }
+    
+    h += `</div>`;
+  });
+  
+  return h;
+}
+
+// ─── VUE COMMANDER (pour une campagne spécifique) ────────────
+function rCommander(){
+  if(!CAMPAGNE_COMMANDE || !CAMP) {
+    TAB='campagne';
+    return rCampagne();
+  }
 
   if(CMD?.validee) return rValidee();
 
@@ -337,7 +433,10 @@ function rCampagne(){
   const pct=tot>0?Math.min(100,(util/tot)*100):0;
   const lignes=Object.entries(PANIER).filter(([,q])=>q>0);
 
-  let h=`<div class="creds">
+  let h=`<div style="margin-bottom:1rem">
+    <button class="btn btn-secondary btn-sm" onclick="TAB='campagne';CAMPAGNE_COMMANDE=null;render()">← Retour aux campagnes</button>
+  </div>
+  <div class="creds">
     <div class="cred-amt">${f(tot)} €</div>
     <div class="cred-lbl">Crédits disponibles</div>
     <div class="cred-det">Utilisés&nbsp;<strong>${f(util)} €</strong>&nbsp;·&nbsp;Restants&nbsp;<strong>${f(rest)} €</strong></div>
@@ -409,28 +508,35 @@ function rValidee(){
 
 // ─── ONGLET INFORMATIONS ─────────────────────────────────────
 function rInfos(){
+  const tot=calcTot();
   return `<div class="card">
-    <div class="shdr"><div class="stitle">Mes informations</div></div>
+    <div class="shdr"><div class="stitle">Mes informations personnelles</div></div>
     <div class="igrid">
       <div class="iitem"><div class="lbl">Nom complet</div><div class="val">${e(ASSOC.prenom)} ${e(ASSOC.nom)}</div></div>
-      <div class="iitem"><div class="lbl">Groupement</div><div class="val">${e(GROUPT.nom)}</div></div>
-      <div class="iitem"><div class="lbl">Vigneron</div><div class="val">${e(GROUPT.vigneron||'—')}</div></div>
-      <div class="iitem"><div class="lbl">Appellation</div><div class="val">${e(GROUPT.appellation||'—')}</div></div>
-      <div class="iitem"><div class="lbl">Nombre de parts</div><div class="val">${ASSOC.parts||0}</div></div>
-      <div class="iitem"><div class="lbl">Mode de retrait</div><div class="val" style="text-transform:capitalize">${e(ASSOC.etat||'—')}</div></div>
-      <div class="iitem"><div class="lbl">Adresse de livraison</div><div class="val" style="font-size:1rem">${e(ASSOC.adresse||'—')}</div></div>
       <div class="iitem"><div class="lbl">Email</div><div class="val" style="font-size:1rem">${e(ASSOC.email||'—')}</div></div>
       <div class="iitem"><div class="lbl">Téléphone</div><div class="val" style="font-size:1rem">${e(ASSOC.tel||'—')}</div></div>
+      <div class="iitem"><div class="lbl">Adresse de livraison</div><div class="val" style="font-size:1rem">${e(ASSOC.adresse||'—')}</div></div>
+      <div class="iitem"><div class="lbl">Nombre de parts</div><div class="val">${ASSOC.parts||0}</div></div>
+      <div class="iitem"><div class="lbl">Crédits disponibles</div><div class="val" style="color:var(--burg);font-weight:700">${f(tot)} €</div></div>
+      <div class="iitem"><div class="lbl">Mode de retrait</div><div class="val" style="text-transform:capitalize">${e(ASSOC.etat||'—')}</div></div>
     </div>
   </div>
   <div class="card">
     <div class="shdr"><div class="stitle">Mon groupement</div></div>
     <div class="igrid">
+      <div class="iitem"><div class="lbl">Groupement</div><div class="val">${e(GROUPT.nom)}</div></div>
+      <div class="iitem"><div class="lbl">Vigneron</div><div class="val">${e(GROUPT.vigneron||'—')}</div></div>
+      <div class="iitem"><div class="lbl">Appellation</div><div class="val">${e(GROUPT.appellation||'—')}</div></div>
       <div class="iitem"><div class="lbl">Parts totales</div>
         <div class="val">${GROUPT.nombre_total_parts||0} <span style="font-size:.85rem;color:#999;font-weight:400">(${GROUPT.parts_pour_bouteille||1}/bouteille)</span></div></div>
-      <div class="iitem"><div class="lbl">Créé le</div><div class="val">${e(GROUPT.date_creation||'—')}</div></div>
-      <div class="iitem"><div class="lbl">Campagnes</div><div class="val">${CAMPAGNES.length}</div></div>
+      <div class="iitem"><div class="lbl">Prix référence bouteille</div><div class="val">${GROUPT.prix_bouteille_reference||'—'} €</div></div>
+      <div class="iitem"><div class="lbl">Date création</div><div class="val">${e(GROUPT.date_creation||'—')}</div></div>
+      <div class="iitem"><div class="lbl">Campagnes</div><div class="val">${CAMPAGNES.length} <span style="font-size:.85rem;color:#999;font-weight:400">(${CAMPAGNES.filter(c=>c.actif).length} active${CAMPAGNES.filter(c=>c.actif).length>1?'s':''})</span></div></div>
     </div>
+    ${GROUPT.commentaire?`<div style="margin-top:1.5rem;padding:1rem;background:rgba(248,245,239,.6);border-left:3px solid var(--gold);border-radius:2px">
+      <div style="font-weight:600;color:var(--burg);margin-bottom:.5rem">📝 Note du groupement</div>
+      <div style="font-size:.95rem;color:#555;line-height:1.6;white-space:pre-wrap">${e(GROUPT.commentaire)}</div>
+    </div>`:''}
   </div>`;
 }
 

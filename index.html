@@ -730,11 +730,12 @@ function renderDetailCampagne(c){
         cardAssoc.appendChild(html('p','Aucun associé dans les groupements de ce vigneron.','empty'));
       } else {
         const tableA=el('table',{class:'tbl'});
-        tableA.innerHTML=`<thead><tr><th>Nom</th><th>Prénom</th><th>Groupement</th><th>Email</th><th>Statut commande</th></tr></thead>`;
+        tableA.innerHTML=`<thead><tr><th>Nom</th><th>Prénom</th><th>Groupement</th><th>Email</th><th>Statut commande</th><th>Actions</th></tr></thead>`;
         const tbodyA=el('tbody');
         associesConcernes.forEach(a=>{
           const cmd = commandes.find(c=>c.associe_id===a.id && c.groupement_id===a.groupement.id);
           const statut = cmd ? (cmd.validee ? '<span class="badge badge-success">Commandé</span>' : '<span class="badge badge-warning">Brouillon</span>') : '<span style="color:#aaa;font-style:italic">En attente</span>';
+          const lien = `${location.origin}${location.pathname}?token=${a.token}`.replace('index.html', 'associe.html');
           
           const tr = el('tr');
           tr.innerHTML = `
@@ -743,6 +744,16 @@ function renderDetailCampagne(c){
             <td class="td-sm">${esc(a.groupement.nom)}</td>
             <td><a href="mailto:${esc(a.email)}" class="td-ml">${esc(a.email)}</a></td>
             <td>${statut}</td>
+            <td style="white-space:nowrap">
+              <button class="btn btn-sm" style="background:var(--gold);color:var(--deep);padding:.4rem .7rem;margin-right:.4rem" 
+                onclick="window.open('mailto:${esc(a.email)}?subject=${encodeURIComponent('Votre accès GFA Manager — '+a.groupement.nom)}&body=${encodeURIComponent('Bonjour '+a.prenom+',\\n\\nVous êtes associé(e) au groupement \"'+a.groupement.nom+'\" ('+a.groupement.vigneron+').\\n\\nRetrouvez votre espace personnel via le lien ci-dessous :\\n'+lien+'\\n\\nCe lien vous est personnel. Conservez-le précieusement.')}', '_blank')">
+                ✉️ Email
+              </button>
+              <button class="btn btn-sm" style="background:var(--burg);color:white;padding:.4rem .7rem" 
+                onclick="navigator.clipboard.writeText('${lien}').then(()=>{const b=event.target;const t=b.textContent;b.textContent='✓ Copié';setTimeout(()=>b.textContent=t,2000)})">
+                📋 Copier
+              </button>
+            </td>
           `;
           tbodyA.appendChild(tr);
         });
