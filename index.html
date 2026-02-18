@@ -622,7 +622,12 @@ function render(){
       mc.appendChild(renderAdmin());
     }
   } else if(STATE.activeTab==='campagnes'){
-    mc.appendChild(renderCampagnes());
+    if(STATE.campagneId){
+      const c=STATE.campagnes.find(x=>x.id===STATE.campagneId);
+      if(c) mc.appendChild(renderDetailCampagne(c));
+    } else {
+      mc.appendChild(renderCampagnes());
+    }
   } else {
     mc.appendChild(renderAllAssocies());
   }
@@ -630,6 +635,176 @@ function render(){
 
 // Exposer pour le module Firebase
 window.render = render;
+
+// ════════════════════════════════════════════════════════════════
+//  VUE DÉTAIL CAMPAGNE
+// ════════════════════════════════════════════════════════════════
+async function renderDetailCampagne(c){
+  const wrap=el('div');
+  
+  // Breadcrumb
+  const bc=el('div',{class:'bc'});
+  bc.appendChild(html('a','← Retour aux campagnes','',{href:'#',onClick:(e)=>{e.preventDefault();STATE.campagneId=null;render();}}));
+  bc.appendChild(html('span',' / ','bc-sep'));
+  bc.appendChild(html('span',`Campagne ${c.annee}`));
+  wrap.appendChild(bc);
+  
+  // En-tête
+  const hdr=el('div',{style:'margin-bottom:2rem'});
+  hdr.appendChild(html('h1',`Campagne ${c.annee} — ${esc(c.vigneron)}`,'',{style:'font-family:"Playfair Display",serif;font-size:2.4rem;font-weight:900;color:var(--deep)'}));
+  if(c.date_fin) hdr.appendChild(html('div',`Clôture : ${c.date_fin}`,'',{style:'font-size:.95rem;color:#999;font-style:italic;margin-top:.3rem'}));
+  wrap.appendChild(hdr);
+  
+  // Chargement des données
+  wrap.appendChild(html('div','Chargement des données...','loading'));
+  
+  // Charger les données de manière asynchrone
+  setTimeout(async () => {
+    try {
+      const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+      
+      // Charger vins et commandes
+      const [vinsSnap, cmdsSnap] = await Promise.all([
+        getDocs(collection(window.GFA.db, 'campagnes', c.id, 'vins')),
+        getDocs(collection(window.GFA.db, 'campagnes', c.id, 'commandes'))
+      ]);
+      
+      const vins = vinsSnap.docs.map(d=>({id:d.id, ...d.data()}));
+      const commandes = cmdsSnap.docs.map(d=>({id:d.id, ...d.data()}));
+      
+      // Recréer le contenu
+      wrap.innerHTML='';
+      wrap.appendChild(bc);
+      wrap.appendChild(hdr);
+      
+      // Carte infos
+      const cardInfo=el('div',{class:'card'});
+      const gridInfo=el('div',{style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem'});
+      gridInfo.appendChild(html('div',`<div class="lbl">Vins au catalogue</div><div class="val">${vins.length}</div>`,'info-item'));
+      gridInfo.appendChild(html('div',`<div class="lbl">Commandes reçues</div><div class="val">${commandes.filter(c=>c.validee).length} validées / ${commandes.length} total</div>`,'info-item'));
+      gridInfo.appendChild(html('div',`<div class="lbl">Statut</div><div class="val"><span class="badge ${c.actif?'badge-success':'badge-warning'}">${c.actif?'Active':'Clôturée'}</span></div>`,'info-item'));
+      cardInfo.appendChild(gridInfo);
+      wrap.appendChild(cardInfo);
+      
+      // Carte vins
+      const cardVins=el('div',{class:'card'});
+      cardVins.appendChild(html('h3','Catalogue des vins','section-title'));
+      if(!vins.length){
+        cardVins.appendChild(html('p','Aucun vin au catalogue.','empty'));
+      } else {
+        const tableV=el('table',{class:'tbl'});
+        tableV.innerHTML=`<thead><tr><th>Vin</th><th>Prix unitaire</th><th>Stock</th><th>Groupement</th></tr></thead>`;
+        const tbodyV=el('tbody');
+        vins.forEach(v=>{
+          const groupement = STATE.groupements.find(g=>g.id===v.groupement_id);
+          tbodyV.innerHTML+=`<tr>
+            <td class="td-b">${esc(v.nom)}</td>
+            <td style="font-family:'Playfair Display',serif;font-weight:700;color:var(--burg)">${v.prix} €</td>
+            <td>${v.stock||'Illimité'}</td>
+            <td>${groupement?esc(groupement.nom):'—'}</td>
+          </tr>`;
+        });
+        tableV.appendChild(tbodyV);
+        cardVins.appendChild(tableV);
+      }
+      wrap.appendChild(cardVins);
+      
+      // Carte commandes
+      const cardCmds=el('div',{class:'card'});
+      const hdrCmds=el('div',{class:'section-hdr'});
+      hdrCmds.appendChild(html('h3','Commandes','section-title'));
+      const btnExport=el('button',{class:'btn btn-primary btn-sm',onClick:()=>exportCommandesCSV(c, commandes, vins)},'📊 Exporter CSV');
+      hdrCmds.appendChild(btnExport);
+      cardCmds.appendChild(hdrCmds);
+      
+      if(!commandes.length){
+        cardCmds.appendChild(html('p','Aucune commande reçue.','empty'));
+      } else {
+        const tableC=el('table',{class:'tbl'});
+        tableC.innerHTML=`<thead><tr><th>Associé</th><th>Groupement</th><th>Mode</th><th>Statut</th><th>Total</th><th>Détail</th><th>Date</th></tr></thead>`;
+        const tbodyC=el('tbody');
+        commandes.forEach(cmd=>{
+          const groupement = STATE.groupements.find(g=>g.id===cmd.groupement_id);
+          const associe = groupement?.associes?.find(a=>a.id===cmd.associe_id);
+          const total = Object.entries(cmd.panier||{}).reduce((s,[vid,qty])=>{
+            const v=vins.find(x=>x.id===vid);
+            return s+(v?v.prix*qty:0);
+          },0).toFixed(2);
+          const detail = Object.entries(cmd.panier||{}).map(([vid,qty])=>{
+            const v=vins.find(x=>x.id===vid);
+            return v?`${v.nom} ×${qty}`:'';
+          }).filter(Boolean).join(', ');
+          
+          tbodyC.innerHTML+=`<tr>
+            <td class="td-b">${associe?`${esc(associe.prenom)} ${esc(associe.nom)}`:'—'}</td>
+            <td class="td-sm">${groupement?esc(groupement.nom):'—'}</td>
+            <td>${cmd.mode_recup||'—'}</td>
+            <td><span class="badge ${cmd.validee?'badge-success':'badge-warning'}">${cmd.validee?'Validée':'Brouillon'}</span></td>
+            <td style="font-family:'Playfair Display',serif;font-weight:700;color:var(--burg)">${total} €</td>
+            <td class="td-sm">${detail}</td>
+            <td style="font-size:.82rem;color:#888">${cmd.date_maj?new Date(cmd.date_maj).toLocaleDateString('fr-FR'):'—'}</td>
+          </tr>`;
+        });
+        tableC.appendChild(tbodyC);
+        cardCmds.appendChild(tableC);
+      }
+      wrap.appendChild(cardCmds);
+      
+    } catch(err){
+      console.error('Erreur chargement campagne:', err);
+      wrap.innerHTML='<div class="loading" style="color:#c0392b">Erreur de chargement.</div>';
+    }
+  }, 0);
+  
+  return wrap;
+}
+
+// Export CSV des commandes
+function exportCommandesCSV(campagne, commandes, vins){
+  const lines = [];
+  lines.push(['Campagne', 'Année', 'Associé', 'Prénom', 'Groupement', 'Mode récupération', 'Statut', 'Vin', 'Quantité', 'Prix unitaire', 'Sous-total', 'Total commande', 'Date'].join(';'));
+  
+  commandes.forEach(cmd=>{
+    const groupement = STATE.groupements.find(g=>g.id===cmd.groupement_id);
+    const associe = groupement?.associes?.find(a=>a.id===cmd.associe_id);
+    const totalCmd = Object.entries(cmd.panier||{}).reduce((s,[vid,qty])=>{
+      const v=vins.find(x=>x.id===vid);
+      return s+(v?v.prix*qty:0);
+    },0).toFixed(2);
+    const date = cmd.date_maj?new Date(cmd.date_maj).toLocaleDateString('fr-FR'):'';
+    
+    Object.entries(cmd.panier||{}).forEach(([vid,qty])=>{
+      const v=vins.find(x=>x.id===vid);
+      if(!v) return;
+      const sousTotal = (v.prix*qty).toFixed(2);
+      lines.push([
+        campagne.annee+' - '+campagne.vigneron,
+        campagne.annee,
+        associe?.nom||'',
+        associe?.prenom||'',
+        groupement?.nom||'',
+        cmd.mode_recup||'',
+        cmd.validee?'Validée':'Brouillon',
+        v.nom,
+        qty,
+        v.prix,
+        sousTotal,
+        totalCmd,
+        date
+      ].join(';'));
+    });
+  });
+  
+  const csv = lines.join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `campagne_${campagne.annee}_${campagne.vigneron}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Export CSV téléchargé.');
+}
 
 // ════════════════════════════════════════════════════════════════
 //  VUE ADMIN — LISTE GROUPEMENTS
@@ -1184,6 +1359,14 @@ function openModalNouvelleCampagne() {
     return;
   }
 
+  // Calculer date de clôture par défaut (+1 mois)
+  const dateCloture = new Date();
+  dateCloture.setMonth(dateCloture.getMonth() + 1);
+  const jourCloture = dateCloture.getDate();
+  const moisCloture = dateCloture.toLocaleDateString('fr-FR', { month: 'long' });
+  const anneeCloture = dateCloture.getFullYear();
+  const dateClotureDefaut = `${jourCloture} ${moisCloture} ${anneeCloture}`;
+
   box.innerHTML = `
     <div class="mhead">
       <span class="mtitle">Nouvelle Campagne</span>
@@ -1194,7 +1377,7 @@ function openModalNouvelleCampagne() {
         <div class="fg"><label class="flbl">Année *</label>
           <input class="finput" id="nc-annee" type="number" value="${anneeActuelle}" required></div>
         <div class="fg"><label class="flbl">Date de clôture</label>
-          <input class="finput" id="nc-fin" placeholder="ex. 15 mars ${anneeActuelle}"></div>
+          <input class="finput" id="nc-fin" value="${dateClotureDefaut}" placeholder="ex. 15 mars ${anneeActuelle}"></div>
       </div>
       
       <div class="fg"><label class="flbl">Vigneron *</label>
@@ -1203,9 +1386,6 @@ function openModalNouvelleCampagne() {
           ${vignerons.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('')}
         </select>
       </div>
-      
-      <div class="fg"><label class="flbl">Prix de référence par bouteille (€)</label>
-        <input class="finput" id="nc-prix-ref" type="number" step="0.01" placeholder="ex. 12.50"></div>
       
       <div id="nc-catalogue-zone" style="display:none;margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid rgba(107,30,60,.1)">
         <div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:700;color:var(--burg);margin-bottom:.5rem">
@@ -1222,6 +1402,11 @@ function openModalNouvelleCampagne() {
 
   box.querySelector('.mclose').onclick = closeModal;
   box.querySelector('#nc-cancel').onclick = closeModal;
+
+  // Bloquer le scroll de la souris sur les inputs number (A3)
+  box.querySelectorAll('input[type="number"]').forEach(inp => {
+    inp.addEventListener('wheel', e => e.preventDefault(), { passive: false });
+  });
 
   // Changement de vigneron → afficher les groupements + catalogue
   box.querySelector('#nc-vigneron').addEventListener('change', (e) => {
@@ -1271,6 +1456,11 @@ function openModalNouvelleCampagne() {
           </div>
         </div>
       `).join('');
+      
+      // Bloquer le scroll sur ces nouveaux inputs
+      vinsDiv.querySelectorAll('input[type="number"]').forEach(inp => {
+        inp.addEventListener('wheel', e => e.preventDefault(), { passive: false });
+      });
     }
 
     catalogueZone.style.display='block';
@@ -1282,7 +1472,6 @@ function openModalNouvelleCampagne() {
     const annee     = parseInt(box.querySelector('#nc-annee').value) || anneeActuelle;
     const fin       = box.querySelector('#nc-fin').value.trim();
     const vigneron  = box.querySelector('#nc-vigneron').value;
-    const prixRef   = parseFloat(box.querySelector('#nc-prix-ref').value) || null;
     const createBtn = box.querySelector('#nc-create');
     
     if(!vigneron){
@@ -1321,7 +1510,6 @@ function openModalNouvelleCampagne() {
         vigneron,
         actif: true,
         date_fin: fin,
-        prix_bouteille_reference: prixRef,
         cree_le: new Date().toISOString()
       });
 
