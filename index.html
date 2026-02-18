@@ -9,7 +9,9 @@
 <script>
 // ── Ouvre le client mail avec texte pré-rempli (associé individuel) ──
 function ouvrirMailAssocie(associe, groupement) {
-  const lien = `${location.origin}/associe.html?token=${associe.token}`;
+  let baseUrl = location.origin + location.pathname.replace(/index\.html$/i, '');
+  if(!baseUrl.endsWith('/')) baseUrl += '/';
+  const lien = `${baseUrl}associe.html?token=${associe.token}`;
   const sujet = encodeURIComponent(
     `Votre accès GFA Manager — ${groupement.nom}`
   );
@@ -31,7 +33,9 @@ Cordialement`
 
 // ── Ouvre le client mail pour une campagne (associé individuel) ──
 function ouvrirMailCampagne(associe, groupement, annee, dateFin) {
-  const lien  = `${location.origin}/associe.html?token=${associe.token}`;
+  let baseUrl = location.origin + location.pathname.replace(/index\.html$/i, '');
+  if(!baseUrl.endsWith('/')) baseUrl += '/';
+  const lien  = `${baseUrl}associe.html?token=${associe.token}`;
   const ppb   = groupement.parts_pour_bouteille || 1;
   const prix  = groupement.prix_bouteille_reference || 0;
   const creds = ((associe.parts || 0) / ppb * prix).toFixed(2);
@@ -734,7 +738,11 @@ function renderDetailCampagne(c){
         const tbodyA=el('tbody');
         associesConcernes.forEach(a=>{
           const cmd = commandes.find(c=>c.associe_id===a.id && c.groupement_id===a.groupement.id);
-          const lien = `${location.origin}${location.pathname}?token=${a.token}`.replace('index.html', 'associe.html');
+          
+          // Générer le lien vers associe.html de manière robuste
+          let baseUrl = location.origin + location.pathname.replace(/index\.html$/i, '');
+          if(!baseUrl.endsWith('/')) baseUrl += '/';
+          const lien = `${baseUrl}associe.html?token=${a.token}`;
           
           const tr = el('tr');
           
@@ -1134,7 +1142,10 @@ function renderTableAssocies(g){
   (g.associes||[]).forEach(a=>{
     const tr=el('tr',{class:a.actif?'':'row-off'});
     const token=a.token||'';
-    const lien=token?`${location.origin}/associe.html?token=${token}`:'';
+    // Générer le lien de manière robuste
+    let baseUrl = location.origin + location.pathname.replace(/index\.html$/i, '');
+    if(!baseUrl.endsWith('/')) baseUrl += '/';
+    const lien=token?`${baseUrl}associe.html?token=${token}`:'';
     tr.innerHTML=`
       <td class="td-b">${esc(a.nom)}</td>
       <td>${esc(a.prenom)}</td>
@@ -1927,7 +1938,9 @@ function openModalNouvelleCampagne_OLD(g) {
       
       for (let i = 0; i < associesActifs.length; i++) {
         const a     = associesActifs[i];
-        const lien  = `${location.origin}/associe.html?token=${a.token}`;
+        let baseUrl = location.origin + location.pathname.replace(/index\.html$/i, '');
+        if(!baseUrl.endsWith('/')) baseUrl += '/';
+        const lien  = `${baseUrl}associe.html?token=${a.token}`;
         const ppb   = g.parts_pour_bouteille || 1;
         const prix  = g.prix_bouteille_reference || 0;
         const creds = ((a.parts || 0) / ppb * prix).toFixed(2);
