@@ -467,6 +467,16 @@ function rCommander(){
   if(!VINS.length){
     h+=`<p class="empty">Aucun vin au catalogue pour cette campagne.</p>`;
   } else {
+    // Boutons intelligents
+    h+=`<div style="display:flex;gap:.8rem;margin-bottom:1.5rem;flex-wrap:wrap">
+      <button class="btn btn-secondary btn-sm" id="b-panache" style="flex:1;min-width:200px">
+        🎲 Panachage automatique
+      </button>
+      <button class="btn btn-secondary btn-sm" id="b-replay" style="flex:1;min-width:200px">
+        🔄 Comme l'année dernière
+      </button>
+    </div>`;
+    
     h+=`<div class="wgrid">`;
     VINS.forEach(v=>{
       const q=PANIER[v.id]||0, mx=!!(v.stock&&q>=v.stock);
@@ -652,6 +662,9 @@ function bind(){
   const bd=document.getElementById('b-draft');
   const bv=document.getElementById('b-valid');
   const bm=document.getElementById('b-modif');
+  const bp=document.getElementById('b-panache');
+  const br=document.getElementById('b-replay');
+  
   if(bd) bd.addEventListener('click',()=>sauv(false));
   if(bv) bv.addEventListener('click',()=>sauv(true));
   if(bm) bm.addEventListener('click',async()=>{
@@ -660,6 +673,8 @@ function bind(){
     await window.ASSOC_API.saveCommande(CAMP.id,ASSOC.id,GROUPT.id,CAMP.annee,PANIER,MODE,false,ns,ps);
     if(CMD) CMD.validee=false; render();
   });
+  if(bp) bp.addEventListener('click',()=>panacherAuto());
+  if(br) br.addEventListener('click',()=>repeterAnneePrecedente());
 }
 
 function chgQty(id,d){
@@ -668,6 +683,114 @@ function chgQty(id,d){
   // Autoriser le dépassement des crédits (suppression de la vérification)
   if(d>0&&v.stock&&nw>v.stock){al('Stock limité atteint.',false);return;}
   if(nw===0)delete PANIER[id]; else PANIER[id]=nw;
+  render();
+}
+
+// ═════════════════ FONCTIONS INTELLIGENTES ════════════════════
+function panacherAuto(){
+  const credits = calcTot();
+  const nbVins = VINS.length;
+  
+  if(nbVins===0) return;
+  
+  // Réinitialiser le panier
+  PANIER = {};
+  
+  // Stratégie : répartir équitablement les crédits entre tous les vins
+  // puis ajuster pour avoir des quantités entières
+  
+  // 1. Calculer combien on peut dépenser par vin en moyenne
+  const budgetParVin = credits / nbVins;
+  
+  // 2. Pour chaque vin, calculer la quantité optimale
+  const vinsAvecQty = VINS.map(v => {
+    const qtyIdeal = Math.floor(budgetParVin / v.prix);
+    return {
+      id: v.id,
+      prix: v.prix,
+      qty: Math.max(1, qtyIdeal), // Au moins 1 bouteille de chaque
+      stock: v.stock
+    };
+  });
+  
+  // 3. Calculer le total avec ces quantités
+  let totalActuel = vinsAvecQty.reduce((s,v)=>s+(v.prix*v.qty),0);
+  
+  // 4. Ajuster pour coller au budget (ajouter des bouteilles jusqu'à épuisement des crédits)
+  vinsAvecQty.sort((a,b)=>a.prix-b.prix); // Commencer par les moins chers
+  
+  while(totalActuel < credits){
+    let ajoute = false;
+    for(const v of vinsAvecQty){
+      if(totalActuel + v.prix <= credits){
+        // Vérifier le stock
+        if(!v.stock || v.qty < v.stock){
+          v.qty++;
+          totalActuel += v.prix;
+          ajoute = true;
+          break;
+        }
+      }
+    }
+    if(!ajoute) break; // Plus possible d'ajouter
+  }
+  
+  // 5. Remplir le panier
+  vinsAvecQty.forEach(v => {
+    if(v.qty > 0) PANIER[v.id] = v.qty;
+  });
+  
+  al(`Panachage automatique : ${Object.keys(PANIER).length} vins sélectionnés pour ${f(totalActuel)} € (crédits : ${f(credits)} €)`, true);
+  render();
+}
+
+function repeterAnneePrecedente(){
+  // Trouver la dernière commande validée pour ce vigneron (année précédente)
+  const commandesPrecedentes = COMMANDES.filter(c => 
+    c.validee && 
+    c.campagne_id !== CAMP.id && // Pas la campagne actuelle
+    c.groupement_id === GROUPT.id // Même groupement
+  ).sort((a,b)=>(b.annee||0)-(a.annee||0)); // Plus récente d'abord
+  
+  if(!commandesPrecedentes.length){
+    al('Aucune commande précédente trouvée.', false);
+    return;
+  }
+  
+  const cmdPrecedente = commandesPrecedentes[0];
+  const panierPrecedent = cmdPrecedente.panier || {};
+  const nomsPrecedents = cmdPrecedente.noms_snapshot || {};
+  
+  // Réinitialiser le panier
+  PANIER = {};
+  
+  let nbCorrespondances = 0;
+  let nbNonTrouves = 0;
+  
+  // Pour chaque vin de la commande précédente, chercher le correspondant dans la campagne actuelle
+  Object.entries(panierPrecedent).forEach(([oldId, qty]) => {
+    const nomVin = nomsPrecedents[oldId];
+    if(!nomVin) return;
+    
+    // Chercher un vin avec le même nom dans VINS
+    const vinActuel = VINS.find(v => v.nom === nomVin);
+    
+    if(vinActuel){
+      // Vérifier le stock
+      const qtyFinale = vinActuel.stock ? Math.min(qty, vinActuel.stock) : qty;
+      PANIER[vinActuel.id] = qtyFinale;
+      nbCorrespondances++;
+    } else {
+      nbNonTrouves++;
+    }
+  });
+  
+  if(nbCorrespondances > 0){
+    al(`Commande ${cmdPrecedente.annee||'précédente'} rechargée : ${nbCorrespondances} vin${nbCorrespondances>1?'s':''} retrouvé${nbCorrespondances>1?'s':''}${nbNonTrouves>0?`, ${nbNonTrouves} non disponible${nbNonTrouves>1?'s':''}`:''}.`, true);
+  } else {
+    al('Aucun vin de votre commande précédente n\'est disponible cette année.', false);
+  }
+  
   render();
 }
 
