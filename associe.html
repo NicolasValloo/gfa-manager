@@ -317,24 +317,33 @@ window.addEventListener('api:ready', async ()=>{
   const TOKEN = new URLSearchParams(location.search).get('token');
   if (!TOKEN) return err('Lien invalide','Ce lien ne contient pas d\'identifiant. Vérifiez que vous avez le bon lien.');
   try {
+    console.log('🔍 Recherche de l\'associé avec le token:', TOKEN);
     const r = await window.ASSOC_API.findAssocieByToken(TOKEN);
+    console.log('✅ Associé trouvé:', r);
+    
     if (!r) return err('Non reconnu','Ce lien n\'est pas reconnu. Contactez votre administrateur.');
     ASSOC=r.associe; GROUPT=r.groupement;
     if (!ASSOC.actif) return err('Accès désactivé','Votre accès a été désactivé. Contactez votre administrateur.');
     document.getElementById('hdr-name').textContent = ASSOC.prenom+' '+ASSOC.nom;
 
+    console.log('🍷 Chargement des campagnes pour le vigneron:', GROUPT.vigneron);
     // Charger TOUTES les campagnes du vigneron + toutes les commandes de l'associé
     [CAMPAGNES, COMMANDES] = await Promise.all([
       window.ASSOC_API.getCampagnesVigneron(GROUPT.vigneron),
       window.ASSOC_API.getCommandes(ASSOC.id)
     ]);
+    console.log('✅ Campagnes chargées:', CAMPAGNES.length);
+    console.log('✅ Commandes chargées:', COMMANDES.length);
     
     // Trouver la campagne active
     CAMP = CAMPAGNES.find(c=>c.actif) || null;
+    console.log('📌 Campagne active:', CAMP);
     
     if (CAMP) {
       // Charger les vins filtrés par groupement
+      console.log('🍇 Chargement des vins pour campagne', CAMP.id, 'et groupement', GROUPT.id);
       VINS = await window.ASSOC_API.getVinsCampagne(CAMP.id, GROUPT.id);
+      console.log('✅ Vins chargés:', VINS.length);
       // Chercher la commande de cette campagne
       CMD  = COMMANDES.find(c=>c.campagne_id===CAMP.id && c.groupement_id===GROUPT.id)||null;
       if (CMD) { PANIER=CMD.panier||{}; MODE=CMD.mode_recup||'bernard'; }
@@ -347,8 +356,13 @@ window.addEventListener('api:ready', async ()=>{
         b.classList.add('active'); TAB=b.dataset.tab; render();
       });
     });
+    console.log('✅ Rendu de l\'interface');
     render();
-  } catch(e){ console.error(e); err('Erreur','Impossible de charger vos données. Réessayez.'); }
+  } catch(e){ 
+    console.error('❌ ERREUR:', e); 
+    console.error('Stack:', e.stack);
+    err('Erreur',`Impossible de charger vos données. Détails : ${e.message}`); 
+  }
 });
 
 // ══════════════════════ RENDER ════════════════════════════════
@@ -429,9 +443,10 @@ function rCommander(){
 
   if(CMD?.validee) return rValidee();
 
-  const tot=calcTot(), util=calcUtil(), rest=tot-util;
+  const tot=calcTot(), util=calcUtil(), rest=tot-util, supp=calcSupplement();
   const pct=tot>0?Math.min(100,(util/tot)*100):0;
   const lignes=Object.entries(PANIER).filter(([,q])=>q>0);
+  const depasse=supp>0;
 
   let h=`<div style="margin-bottom:1rem">
     <button class="btn btn-secondary btn-sm" onclick="TAB='campagne';CAMPAGNE_COMMANDE=null;render()">← Retour aux campagnes</button>
@@ -439,8 +454,8 @@ function rCommander(){
   <div class="creds">
     <div class="cred-amt">${f(tot)} €</div>
     <div class="cred-lbl">Crédits disponibles</div>
-    <div class="cred-det">Utilisés&nbsp;<strong>${f(util)} €</strong>&nbsp;·&nbsp;Restants&nbsp;<strong>${f(rest)} €</strong></div>
-    <div class="cbar-w"><div class="cbar" style="width:${pct}%"></div></div>
+    <div class="cred-det">Utilisés&nbsp;<strong>${f(util)} €</strong>&nbsp;·&nbsp;${depasse?`<span style="color:#c0392b;font-weight:700">Supplément à payer&nbsp;<strong>${f(supp)} €</strong></span>`:`Restants&nbsp;<strong>${f(rest)} €</strong>`}</div>
+    <div class="cbar-w"><div class="cbar" style="width:${pct}%;${depasse?'background:linear-gradient(135deg,#c0392b,#e74c3c)':''}"></div></div>
   </div>
   <div id="az"></div>
   <div class="card">
@@ -474,7 +489,17 @@ function rCommander(){
   if(lignes.length){
     h+=`<div class="recap"><div class="rtitle">Récapitulatif</div>`;
     lignes.forEach(([id,q])=>{ const v=VINS.find(x=>x.id===id); if(v) h+=`<div class="rrow"><span>${e(v.nom)} × ${q}</span><span>${f(v.prix*q)} €</span></div>`; });
-    h+=`<div class="rrow"><span>Total</span><span>${f(util)} € <span style="font-size:.82rem;font-weight:400;color:#888">/ ${f(tot)} €</span></span></div></div>`;
+    h+=`<div class="rrow" style="border-top:1px solid rgba(107,30,60,.1);margin-top:.3rem;padding-top:.3rem">
+      <span>Crédits utilisés</span><span>${f(Math.min(util,tot))} €</span>
+    </div>`;
+    if(depasse){
+      h+=`<div class="rrow" style="color:#c0392b;font-weight:700">
+        <span>💳 Supplément à payer au vigneron</span><span>+ ${f(supp)} €</span>
+      </div>`;
+    }
+    h+=`<div class="rrow" style="border-top:2px solid var(--burg);padding-top:.5rem;font-size:1.1rem">
+      <span>Total commande</span><span>${f(util)} €</span>
+    </div></div>`;
   }
 
   h+=`<div class="card">
@@ -493,14 +518,25 @@ function rCommander(){
 
 function rValidee(){
   const lignes=Object.entries(PANIER).filter(([,q])=>q>0);
-  const tot=calcTot(), util=calcUtil();
+  const tot=calcTot(), util=calcUtil(), supp=calcSupplement();
+  const depasse=supp>0;
   let h=`<div class="val-ok"><h3>✓ Commande validée</h3>
     <p>Votre commande pour la campagne ${CAMP.annee} a bien été enregistrée.</p>
   </div>`;
   if(lignes.length){
     h+=`<div class="recap"><div class="rtitle">Votre commande ${CAMP.annee}</div>`;
     lignes.forEach(([id,q])=>{ const v=VINS.find(x=>x.id===id); if(v) h+=`<div class="rrow"><span>${e(v.nom)} × ${q}</span><span>${f(v.prix*q)} €</span></div>`; });
-    h+=`<div class="rrow"><span>Total</span><span>${f(util)} €</span></div></div>`;
+    h+=`<div class="rrow" style="border-top:1px solid rgba(107,30,60,.1);margin-top:.3rem;padding-top:.3rem">
+      <span>Crédits utilisés</span><span>${f(Math.min(util,tot))} €</span>
+    </div>`;
+    if(depasse){
+      h+=`<div class="rrow" style="color:#c0392b;font-weight:700">
+        <span>💳 Supplément à payer au vigneron</span><span>+ ${f(supp)} €</span>
+      </div>`;
+    }
+    h+=`<div class="rrow" style="border-top:2px solid var(--burg);padding-top:.5rem;font-size:1.1rem">
+      <span>Total</span><span>${f(util)} €</span>
+    </div></div>`;
   }
   h+=`<div class="acts"><button class="btn btn-o" id="b-modif">Modifier ma commande</button></div>`;
   return h;
@@ -627,13 +663,17 @@ async function sauv(valider){
 // ═══════════════════ HELPERS ══════════════════════════════════
 function calcTot(){
   const ppb=GROUPT.parts_pour_bouteille||1;
-  const prix=CAMP?.prix_bouteille_reference||GROUPT.prix_bouteille_reference||0;
+  const prix=GROUPT.prix_bouteille_reference||0;
   return (ASSOC.parts/ppb)*prix;
 }
 function calcUtil(){
   return Object.entries(PANIER).reduce((s,[id,q])=>{
     const v=VINS.find(x=>x.id===id); return s+(v?v.prix*q:0);
   },0);
+}
+function calcSupplement(){
+  const tot=calcTot(), util=calcUtil();
+  return Math.max(0, util-tot);
 }
 function err(t,m){ document.getElementById('main').innerHTML=`<div class="sc"><h2>${t}</h2><p>${m}</p></div>`; }
 function al(m,ok){ const z=document.getElementById('az'); if(z){z.innerHTML=`<div class="al ${ok?'al-ok':'al-err'}">${m}</div>`;setTimeout(()=>{if(z)z.innerHTML=''},4000);} }
