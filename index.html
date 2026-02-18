@@ -656,11 +656,38 @@ function renderDetailCampagne(c){
   bc.appendChild(html('span',`Campagne ${c.annee}`));
   wrap.appendChild(bc);
   
-  // En-tête
-  const hdr=el('div',{style:'margin-bottom:2rem'});
-  hdr.appendChild(html('h1',`Campagne ${c.annee} — ${esc(c.vigneron)}`,'',{style:'font-family:"Playfair Display",serif;font-size:2.4rem;font-weight:900;color:var(--deep)'}));
-  if(c.date_fin) hdr.appendChild(html('div',`Clôture : ${c.date_fin}`,'',{style:'font-size:.95rem;color:#999;font-style:italic;margin-top:.3rem'}));
-  wrap.appendChild(hdr);
+  // En-tête avec boutons
+  const hdrRow=el('div',{style:'display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2rem'});
+  const hdrLeft=el('div');
+  hdrLeft.appendChild(html('h1',`Campagne ${c.annee} — ${esc(c.vigneron)}`,'',{style:'font-family:"Playfair Display",serif;font-size:2.4rem;font-weight:900;color:var(--deep)'}));
+  if(c.date_fin) hdrLeft.appendChild(html('div',`Clôture : ${c.date_fin}`,'',{style:'font-size:.95rem;color:#999;font-style:italic;margin-top:.3rem'}));
+  hdrRow.appendChild(hdrLeft);
+  
+  const hdrRight=el('div',{style:'display:flex;align-items:center;gap:1rem'});
+  // Badge statut cliquable (toggle)
+  const badgeStatut=el('button',{
+    class:`badge ${c.actif?'badge-success':'badge-warning'}`,
+    style:'cursor:pointer;border:none;font-size:.9rem;padding:.4rem 1rem',
+    onClick:async()=>{
+      const { doc, updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+      const newStatut = !c.actif;
+      await updateDoc(doc(window.GFA.db, 'campagnes', c.id), { actif: newStatut });
+      c.actif = newStatut;
+      toast(`Campagne ${newStatut?'activée':'clôturée'}.`);
+      await loadAll();
+      render();
+    }
+  }, c.actif?'Active - cliquer pour clôturer':'Clôturée - cliquer pour réactiver');
+  hdrRight.appendChild(badgeStatut);
+  
+  // Bouton supprimer
+  const btnSuppr=el('button',{
+    class:'btn btn-del btn-sm',
+    onClick:()=>openModalSupprimerCampagne(c)
+  },'🗑 Supprimer');
+  hdrRight.appendChild(btnSuppr);
+  hdrRow.appendChild(hdrRight);
+  wrap.appendChild(hdrRow);
   
   // Zone de chargement
   const loadingDiv = el('div',{class:'loading'});
@@ -692,6 +719,37 @@ function renderDetailCampagne(c){
       gridInfo.appendChild(html('div',`<div class="lbl">Statut</div><div class="val"><span class="badge ${c.actif?'badge-success':'badge-warning'}">${c.actif?'Active':'Clôturée'}</span></div>`,'info-item'));
       cardInfo.appendChild(gridInfo);
       wrap.appendChild(cardInfo);
+      
+      // Carte Associés concernés par cette campagne
+      const groupementsConcernes = STATE.groupements.filter(g=>g.vigneron===c.vigneron);
+      const associesConcernes = groupementsConcernes.flatMap(g=>(g.associes||[]).map(a=>({...a, groupement:g})));
+      
+      const cardAssoc=el('div',{class:'card'});
+      cardAssoc.appendChild(html('h3',`Associés concernés (${associesConcernes.length})`,'section-title'));
+      if(!associesConcernes.length){
+        cardAssoc.appendChild(html('p','Aucun associé dans les groupements de ce vigneron.','empty'));
+      } else {
+        const tableA=el('table',{class:'tbl'});
+        tableA.innerHTML=`<thead><tr><th>Nom</th><th>Prénom</th><th>Groupement</th><th>Email</th><th>Statut commande</th></tr></thead>`;
+        const tbodyA=el('tbody');
+        associesConcernes.forEach(a=>{
+          const cmd = commandes.find(c=>c.associe_id===a.id && c.groupement_id===a.groupement.id);
+          const statut = cmd ? (cmd.validee ? '<span class="badge badge-success">Commandé</span>' : '<span class="badge badge-warning">Brouillon</span>') : '<span style="color:#aaa;font-style:italic">En attente</span>';
+          
+          const tr = el('tr');
+          tr.innerHTML = `
+            <td class="td-b">${esc(a.nom)}</td>
+            <td>${esc(a.prenom)}</td>
+            <td class="td-sm">${esc(a.groupement.nom)}</td>
+            <td><a href="mailto:${esc(a.email)}" class="td-ml">${esc(a.email)}</a></td>
+            <td>${statut}</td>
+          `;
+          tbodyA.appendChild(tr);
+        });
+        tableA.appendChild(tbodyA);
+        cardAssoc.appendChild(tableA);
+      }
+      wrap.appendChild(cardAssoc);
       
       // Carte vins
       const cardVins=el('div',{class:'card'});
@@ -816,6 +874,62 @@ function exportCommandesCSV(campagne, commandes, vins){
   a.click();
   URL.revokeObjectURL(url);
   toast('Export CSV téléchargé.');
+}
+
+// Modal de suppression de campagne
+function openModalSupprimerCampagne(campagne){
+  const box = el('div', {class:'mbox mbox--sm'});
+  box.innerHTML = `
+    <div class="mhead mhead--danger">
+      <span class="mtitle">Supprimer la campagne</span>
+      <button class="mclose">✕</button>
+    </div>
+    <div class="mbody" style="text-align:center">
+      <div style="font-size:3rem;margin:1rem 0">⚠️</div>
+      <p style="font-size:1.1rem;margin-bottom:.8rem">Vous allez supprimer la <strong>campagne ${campagne.annee} — ${esc(campagne.vigneron)}</strong></p>
+      <p style="font-size:.9rem;color:#888">Cette action est irréversible. Tous les vins et commandes de cette campagne seront supprimés.</p>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-secondary mclose">Annuler</button>
+      <button class="btn" id="btn-confirm-suppr" style="background:linear-gradient(135deg,#c0392b,#8B1A1A);color:white">Confirmer la suppression</button>
+    </div>
+  `;
+  
+  box.querySelector('.mclose').onclick = closeModal;
+  box.querySelectorAll('.mclose').forEach(b=>b.onclick=closeModal);
+  
+  box.querySelector('#btn-confirm-suppr').onclick = async () => {
+    try {
+      const { doc, deleteDoc, collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+      
+      // Supprimer les vins
+      const vinsSnap = await getDocs(collection(window.GFA.db, 'campagnes', campagne.id, 'vins'));
+      for(const vinDoc of vinsSnap.docs){
+        await deleteDoc(doc(window.GFA.db, 'campagnes', campagne.id, 'vins', vinDoc.id));
+      }
+      
+      // Supprimer les commandes
+      const cmdsSnap = await getDocs(collection(window.GFA.db, 'campagnes', campagne.id, 'commandes'));
+      for(const cmdDoc of cmdsSnap.docs){
+        await deleteDoc(doc(window.GFA.db, 'campagnes', campagne.id, 'commandes', cmdDoc.id));
+      }
+      
+      // Supprimer la campagne
+      await deleteDoc(doc(window.GFA.db, 'campagnes', campagne.id));
+      
+      closeModal();
+      toast('Campagne supprimée.');
+      STATE.campagneId = null;
+      await loadAll();
+      render();
+      
+    } catch(err){
+      console.error('Erreur suppression:', err);
+      toast('Erreur lors de la suppression.', true);
+    }
+  };
+  
+  openModal(box);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1548,7 +1662,12 @@ function openModalNouvelleCampagne() {
 
       closeModal();
       toast(`Campagne ${annee} créée avec ${vins.length} vin${vins.length>1?'s':''}.`);
-      setTimeout(() => location.reload(), 1500);
+      
+      // Recharger les campagnes et rediriger vers le détail
+      await loadAll();
+      STATE.campagneId = campagneRef.id;
+      STATE.activeTab = 'campagnes';
+      render();
 
     } catch(err) {
       console.error(err);
