@@ -663,8 +663,28 @@ async function sauv(valider){
 // ═══════════════════ HELPERS ══════════════════════════════════
 function calcTot(){
   const ppb=GROUPT.parts_pour_bouteille||1;
-  const prix=GROUPT.prix_bouteille_reference||0;
-  return (ASSOC.parts/ppb)*prix;
+  
+  // Trouver le vin de référence dans la campagne actuelle
+  // Le vin de référence est celui dont le nom correspond à l'appellation du groupement
+  const vinRef = VINS.find(v => v.nom === GROUPT.appellation);
+  
+  // Si on trouve le vin de référence dans cette campagne, utiliser son prix
+  // Sinon, utiliser le prix_bouteille_reference du groupement en fallback
+  const prix = vinRef ? vinRef.prix : (GROUPT.prix_bouteille_reference||0);
+  
+  const total = (ASSOC.parts/ppb)*prix;
+  
+  console.log('💰 Calcul crédits:', {
+    parts: ASSOC.parts,
+    ppb: ppb,
+    bouteilles: ASSOC.parts/ppb,
+    appellation_ref: GROUPT.appellation,
+    vin_ref_trouve: vinRef ? vinRef.nom : 'NON TROUVÉ',
+    prix: prix,
+    total: total
+  });
+  
+  return total;
 }
 function calcUtil(){
   return Object.entries(PANIER).reduce((s,[id,q])=>{
