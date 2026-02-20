@@ -149,10 +149,20 @@ async function getVins(vigneronId = null) {
   if (vigneronId) {
     q = query(q, where("vigneronId", "==", vigneronId));
   }
-  // Tri par type puis par prix
-  q = query(q, orderBy("type"), orderBy("prixUnitaire"));
+  // Ne pas trier dans Firestore pour éviter l'index composite
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const vins = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  
+  // Tri côté client par type puis par prix
+  const typeOrder = { blanc: 1, rosé: 2, rouge: 3, pétillant: 4, doux: 5 };
+  vins.sort((a, b) => {
+    const typeA = typeOrder[a.type] || 999;
+    const typeB = typeOrder[b.type] || 999;
+    if (typeA !== typeB) return typeA - typeB;
+    return (a.prixUnitaire || 0) - (b.prixUnitaire || 0);
+  });
+  
+  return vins;
 }
 
 async function saveVin(vin) {
@@ -953,13 +963,208 @@ async function supprimerVin(id) {
 // ══════════════════════════════════════════════════════════════
 
 function openModalGroupement(groupementId = null) {
-  // Code original conservé...
-  toast('Fonction à implémenter: Modal Groupement');
+  const groupement = groupementId ? window.STATE.groupements.find(g => g.id === groupementId) : null;
+  const isEdit = !!groupement;
+  
+  const box = `
+    <div class="modal-box">
+      <div class="mtop">
+        <h2>${isEdit ? 'Modifier le groupement' : 'Nouveau groupement'}</h2>
+        <button class="mclose" onclick="closeModal()">×</button>
+      </div>
+      <div class="mbody">
+        <div class="form-group">
+          <label>Nom du groupement *</label>
+          <input type="text" id="g-nom" class="finput" value="${esc(groupement?.nom||'')}" required>
+        </div>
+        
+        <div class="form-group">
+          <label>Vigneron</label>
+          <input type="text" id="g-vigneron" class="finput" value="${esc(groupement?.vigneron||'')}">
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label>Parts totales</label>
+            <input type="number" id="g-parts-tot" class="finput" value="${groupement?.parts_totales||''}" min="0">
+          </div>
+          <div class="form-group">
+            <label>Parts pour 1 bouteille</label>
+            <input type="number" id="g-ppb" class="finput" value="${groupement?.parts_pour_bouteille||1}" min="0.01" step="0.01">
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label>Prix bouteille de référence (€)</label>
+          <input type="number" id="g-prix-ref" class="finput" value="${groupement?.prix_bouteille_reference||''}" step="0.01" min="0">
+        </div>
+        
+        <div class="form-group">
+          <label>Appellation de référence</label>
+          <input type="text" id="g-appellation" class="finput" value="${esc(groupement?.appellation||'')}">
+        </div>
+        
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="g-actif" ${groupement?.actif !== false ? 'checked' : ''}>
+            Groupement actif
+          </label>
+        </div>
+      </div>
+      <div class="mfoot">
+        <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+        ${isEdit ? `<button class="btn btn-danger" onclick="supprimerGroupement('${groupementId}')">Supprimer</button>` : ''}
+        <button class="btn btn-gold" id="save-groupement">Enregistrer</button>
+      </div>
+    </div>
+  `;
+  
+  openModal(box);
+  
+  document.getElementById('save-groupement').onclick = async () => {
+    const nom = document.getElementById('g-nom').value.trim();
+    if (!nom) {
+      toast('Le nom du groupement est obligatoire', true);
+      return;
+    }
+    
+    const data = {
+      id: groupementId,
+      nom,
+      vigneron: document.getElementById('g-vigneron').value.trim(),
+      parts_totales: parseInt(document.getElementById('g-parts-tot').value) || 0,
+      parts_pour_bouteille: parseFloat(document.getElementById('g-ppb').value) || 1,
+      prix_bouteille_reference: parseFloat(document.getElementById('g-prix-ref').value) || null,
+      appellation: document.getElementById('g-appellation').value.trim(),
+      actif: document.getElementById('g-actif').checked
+    };
+    
+    try {
+      await window.GFA.saveGroupement(data);
+      toast(`Groupement ${isEdit ? 'modifié' : 'créé'} avec succès`);
+      await loadAll();
+      closeModal();
+    } catch(err) {
+      console.error(err);
+      toast('Erreur lors de l\'enregistrement', true);
+    }
+  };
+}
+
+async function supprimerGroupement(id) {
+  if (!confirm('Supprimer ce groupement et tous ses associés définitivement ?')) return;
+  
+  try {
+    await window.GFA.deleteGroupement(id);
+    toast('Groupement supprimé');
+    await loadAll();
+    closeModal();
+  } catch(err) {
+    console.error(err);
+    toast('Erreur lors de la suppression', true);
+  }
 }
 
 async function openFicheGroupement(id) {
-  // Code original conservé pour afficher la fiche détaillée
-  toast('Fonction à implémenter: Fiche Groupement');
+  const g = window.STATE.groupements.find(x => x.id === id);
+  if (!g) return;
+  
+  // Charger les associés et campagnes
+  const associes = await window.GFA.getAssocies(id);
+  const associesActifs = associes.filter(a => a.actif !== false);
+  
+  const box = `
+    <div class="modal-box" style="max-width:900px">
+      <div class="mtop">
+        <h2>${esc(g.nom)}</h2>
+        <button class="mclose" onclick="closeModal()">×</button>
+      </div>
+      <div class="mbody">
+        <!-- Informations générales -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:2rem">
+          <div>
+            <h3 style="font-family:'Playfair Display',serif;font-size:1.2rem;font-weight:700;color:var(--burg);margin-bottom:1rem">
+              Informations
+            </h3>
+            <div style="display:grid;gap:.8rem">
+              <div><strong>Vigneron:</strong> ${esc(g.vigneron||'—')}</div>
+              <div><strong>Parts totales:</strong> ${g.parts_totales || 0}</div>
+              <div><strong>Parts/Bouteille:</strong> ${g.parts_pour_bouteille || 1}</div>
+              <div><strong>Prix référence:</strong> ${g.prix_bouteille_reference ? g.prix_bouteille_reference.toFixed(2) + ' €' : '—'}</div>
+              <div><strong>Appellation:</strong> ${esc(g.appellation||'—')}</div>
+              <div><strong>Statut:</strong> ${g.actif !== false ? '<span class="badge badge-actif">Actif</span>' : '<span class="badge badge-inactif">Inactif</span>'}</div>
+            </div>
+          </div>
+          
+          <div>
+            <h3 style="font-family:'Playfair Display',serif;font-size:1.2rem;font-weight:700;color:var(--burg);margin-bottom:1rem">
+              Associés (${associes.length})
+            </h3>
+            <div><strong>Actifs:</strong> ${associesActifs.length}</div>
+            <div><strong>Inactifs:</strong> ${associes.length - associesActifs.length}</div>
+          </div>
+        </div>
+        
+        <!-- Liste des associés -->
+        <div style="margin-bottom:2rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+            <h3 style="font-family:'Playfair Display',serif;font-size:1.2rem;font-weight:700;color:var(--burg);margin:0">
+              Liste des associés
+            </h3>
+            <button class="btn btn-sm btn-gold" onclick="closeModal();openModalAssocie('${id}')">➕ Ajouter</button>
+          </div>
+          
+          ${!associes.length ? `
+            <p style="color:#999;font-style:italic;text-align:center;padding:1.5rem">
+              Aucun associé dans ce groupement
+            </p>
+          ` : `
+            <div style="display:grid;gap:.8rem;max-height:300px;overflow-y:auto">
+              ${associes.map(a => `
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem;
+                  background:rgba(248,245,239,.6);border-radius:4px;border-left:3px solid ${a.actif !== false ? 'var(--burg)' : '#ccc'}">
+                  <div>
+                    <div style="font-weight:600">${esc(a.prenom)} ${esc(a.nom)}</div>
+                    <div style="font-size:.85rem;color:#666">${esc(a.email||'—')} • ${a.parts || 0} parts</div>
+                  </div>
+                  <div style="display:flex;gap:.5rem;align-items:center">
+                    ${a.actif !== false ? '<span class="badge badge-actif">Actif</span>' : '<span class="badge badge-inactif">Inactif</span>'}
+                    <button class="btn btn-sm btn-secondary" onclick="closeModal();openModalAssocie('${id}','${a.id}')">✏️</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+        
+        <!-- Actions campagne -->
+        <div style="padding-top:1.5rem;border-top:1px solid rgba(107,30,60,.1)">
+          <h3 style="font-family:'Playfair Display',serif;font-size:1.2rem;font-weight:700;color:var(--burg);margin-bottom:1rem">
+            Gestion des campagnes
+          </h3>
+          <button class="btn btn-gold" onclick="closeModal();openNouvelleCampagne('${id}')">
+            🍷 Créer une nouvelle campagne
+          </button>
+        </div>
+      </div>
+      <div class="mfoot">
+        <button class="btn btn-secondary" onclick="closeModal()">Fermer</button>
+        <button class="btn btn-primary" onclick="closeModal();openModalGroupement('${id}')">
+          ✏️ Modifier le groupement
+        </button>
+      </div>
+    </div>
+  `;
+  
+  openModal(box);
+}
+
+// Fonction pour ouvrir le modal d'associé (à implémenter si besoin)
+function openModalAssocie(groupementId, associeId = null) {
+  // Pour l'instant, on affiche juste un message
+  // Cette fonction peut être implémentée plus tard pour gérer les associés
+  toast('Gestion des associés - À implémenter selon vos besoins');
+  closeModal();
 }
 
 // ══════════════════════════════════════════════════════════════
