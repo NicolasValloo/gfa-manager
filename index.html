@@ -485,6 +485,7 @@ padding:.8rem;background:rgba(248,245,239,.6);border-radius:4px;margin-bottom:.5
   <button class="nav-btn active" data-tab="groupements">Groupements</button>
   <button class="nav-btn" data-tab="vignerons">Vignerons</button>
   <button class="nav-btn" data-tab="vins">Vins</button>
+  <button class="nav-btn" data-tab="campagnes">Campagnes</button>
 </nav>
 
 <main id="content"></main>
@@ -535,6 +536,8 @@ function render() {
     content.innerHTML = renderVignerons();
   } else if (activeTab === 'vins') {
     content.innerHTML = renderVins();
+  } else if (activeTab === 'campagnes') {
+    content.innerHTML = renderCampagnes();
   }
   
   attachEventListeners();
@@ -684,6 +687,72 @@ function renderVins() {
       `}
     </div>
   `;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ONGLET CAMPAGNES (NOUVEAU)
+// ══════════════════════════════════════════════════════════════
+
+async function renderCampagnes() {
+  const { groupements } = window.STATE;
+  
+  // Charger toutes les campagnes de tous les groupements
+  const toutesLesCampagnes = [];
+  
+  for (const g of groupements) {
+    try {
+      const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+      const campagnesSnap = await getDocs(collection(window.GFA.db, 'groupements', g.id, 'campagnes'));
+      campagnesSnap.forEach(doc => {
+        toutesLesCampagnes.push({
+          id: doc.id,
+          groupementId: g.id,
+          groupementNom: g.nom,
+          ...doc.data()
+        });
+      });
+    } catch(err) {
+      console.error(`Erreur chargement campagnes pour ${g.nom}:`, err);
+    }
+  }
+  
+  // Trier par année décroissante
+  toutesLesCampagnes.sort((a, b) => (b.annee || 0) - (a.annee || 0));
+  
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+        <h2 class="card-title" style="margin:0">Toutes les Campagnes (${toutesLesCampagnes.length})</h2>
+      </div>
+      
+      ${!toutesLesCampagnes.length ? `
+        <p style="color:#999;font-style:italic;text-align:center;padding:2rem">
+          Aucune campagne créée. Créez une campagne depuis un groupement.
+        </p>
+      ` : `
+        <div class="grid">
+          ${toutesLesCampagnes.map(c => `
+            <div class="fiche-card" style="cursor:default">
+              <h3>Campagne ${c.annee || '—'}</h3>
+              <p><strong>Groupement:</strong> ${esc(c.groupementNom)}</p>
+              <p><strong>Vins:</strong> ${(c.vinsIds || []).length}</p>
+              ${c.date_fin ? `<p><strong>Date limite:</strong> ${c.date_fin}</p>` : ''}
+              ${c.actif ? '<span class="badge badge-actif">Active</span>' : '<span class="badge badge-inactif">Terminée</span>'}
+              <div style="margin-top:1rem;display:flex;gap:.5rem">
+                <button class="btn btn-sm btn-secondary" onclick="voirDetailsCampagne('${c.groupementId}', '${c.id}')">
+                  👁️ Détails
+                </button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+async function voirDetailsCampagne(groupementId, campagneId) {
+  toast('Fonction "Voir détails campagne" - À implémenter');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -965,6 +1034,7 @@ async function supprimerVin(id) {
 function openModalGroupement(groupementId = null) {
   const groupement = groupementId ? window.STATE.groupements.find(g => g.id === groupementId) : null;
   const isEdit = !!groupement;
+  const { vignerons } = window.STATE;
   
   const box = `
     <div class="modal-box">
@@ -980,7 +1050,18 @@ function openModalGroupement(groupementId = null) {
         
         <div class="form-group">
           <label>Vigneron</label>
-          <input type="text" id="g-vigneron" class="finput" value="${esc(groupement?.vigneron||'')}">
+          <select id="g-vigneron-select" class="finput">
+            <option value="">-- Sélectionnez un vigneron --</option>
+            ${vignerons.map(v => `
+              <option value="${v.id}" ${groupement?.vigneronId === v.id ? 'selected' : ''}>
+                ${esc(v.domaine)} (${esc(v.prenom)} ${esc(v.nom)})
+              </option>
+            `).join('')}
+            <option value="__NEW__">➕ Créer un nouveau vigneron</option>
+          </select>
+          <input type="hidden" id="g-vigneron-id" value="${groupement?.vigneronId || ''}">
+          <input type="text" id="g-vigneron-nom" class="finput" value="${esc(groupement?.vigneron||'')}" 
+            placeholder="Nom du vigneron (optionnel si sélectionné ci-dessus)" style="margin-top:.5rem">
         </div>
         
         <div class="form-row">
@@ -1021,6 +1102,26 @@ function openModalGroupement(groupementId = null) {
   
   openModal(box);
   
+  // Listener pour le select vigneron
+  const selectVigneron = document.getElementById('g-vigneron-select');
+  if (selectVigneron) {
+    selectVigneron.addEventListener('change', (e) => {
+      if (e.target.value === '__NEW__') {
+        closeModal();
+        openModalVigneron();
+      } else {
+        document.getElementById('g-vigneron-id').value = e.target.value;
+        // Mettre à jour le nom si un vigneron est sélectionné
+        if (e.target.value) {
+          const vigneron = vignerons.find(v => v.id === e.target.value);
+          if (vigneron) {
+            document.getElementById('g-vigneron-nom').value = vigneron.domaine;
+          }
+        }
+      }
+    });
+  }
+  
   document.getElementById('save-groupement').onclick = async () => {
     const nom = document.getElementById('g-nom').value.trim();
     if (!nom) {
@@ -1028,10 +1129,14 @@ function openModalGroupement(groupementId = null) {
       return;
     }
     
+    const vigneronId = document.getElementById('g-vigneron-id').value;
+    const vigneronNom = document.getElementById('g-vigneron-nom').value.trim();
+    
     const data = {
       id: groupementId,
       nom,
-      vigneron: document.getElementById('g-vigneron').value.trim(),
+      vigneronId: vigneronId || null,
+      vigneron: vigneronNom,
       parts_totales: parseInt(document.getElementById('g-parts-tot').value) || 0,
       parts_pour_bouteille: parseFloat(document.getElementById('g-ppb').value) || 1,
       prix_bouteille_reference: parseFloat(document.getElementById('g-prix-ref').value) || null,
@@ -1075,9 +1180,14 @@ async function openFicheGroupement(id) {
   
   const box = `
     <div class="modal-box" style="max-width:900px">
-      <div class="mtop">
+      <div class="mtop" style="position:relative">
         <h2>${esc(g.nom)}</h2>
         <button class="mclose" onclick="closeModal()">×</button>
+        <button class="btn btn-gold btn-sm" 
+          style="position:absolute;top:1rem;right:4rem;z-index:10"
+          onclick="closeModal();openNouvelleCampagne('${id}')">
+          🍷 Nouvelle Campagne
+        </button>
       </div>
       <div class="mbody">
         <!-- Informations générales -->
@@ -1135,16 +1245,6 @@ async function openFicheGroupement(id) {
               `).join('')}
             </div>
           `}
-        </div>
-        
-        <!-- Actions campagne -->
-        <div style="padding-top:1.5rem;border-top:1px solid rgba(107,30,60,.1)">
-          <h3 style="font-family:'Playfair Display',serif;font-size:1.2rem;font-weight:700;color:var(--burg);margin-bottom:1rem">
-            Gestion des campagnes
-          </h3>
-          <button class="btn btn-gold" onclick="closeModal();openNouvelleCampagne('${id}')">
-            🍷 Créer une nouvelle campagne
-          </button>
         </div>
       </div>
       <div class="mfoot">
@@ -1548,6 +1648,27 @@ function attachEventListeners() {
   // Les event listeners inline sont gérés par onclick= dans le HTML généré
   // Les autres sont attachés dynamiquement après render
 }
+
+// ══════════════════════════════════════════════════════════════
+//  EXPOSITION DES FONCTIONS POUR LES ONCLICK
+// ══════════════════════════════════════════════════════════════
+
+window.openModal = openModal;
+window.closeModal = closeModal;
+window.openModalGroupement = openModalGroupement;
+window.supprimerGroupement = supprimerGroupement;
+window.openFicheGroupement = openFicheGroupement;
+window.openModalVigneron = openModalVigneron;
+window.supprimerVigneron = supprimerVigneron;
+window.openModalVin = openModalVin;
+window.supprimerVin = supprimerVin;
+window.openNouvelleCampagne = openNouvelleCampagne;
+window.genererPDFCampagne = genererPDFCampagne;
+window.openModalAssocie = openModalAssocie;
+window.voirDetailsCampagne = voirDetailsCampagne;
+window.toast = toast;
+window.loadAll = loadAll;
+window.render = render;
 
 </script>
 
