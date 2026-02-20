@@ -186,6 +186,10 @@ async function deleteVin(id) {
   await deleteDoc(doc(db, "vins", id));
 }
 
+async function deleteVigneron(id) {
+  await deleteDoc(doc(db, "vignerons", id));
+}
+
 // ── Génération de token unique pour un associé ─────────────
 function genToken() {
   return [...crypto.getRandomValues(new Uint8Array(24))].map(b=>b.toString(16).padStart(2,'0')).join('');
@@ -196,7 +200,7 @@ window.GFA = {
   auth, db, 
   getGroupements, saveGroupement, deleteGroupement,
   saveAssocie, deleteAssocie, getAssocies, 
-  getVignerons, saveVigneron,
+  getVignerons, saveVigneron, deleteVigneron,
   getVins, saveVin, deleteVin,
   genToken,
   signInWithEmailAndPassword, onAuthStateChanged, signOut 
@@ -253,6 +257,61 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnLogout = $('logout-btn');
   if(btnLogout) {
     btnLogout.addEventListener('click', () => signOut(auth));
+  }
+
+  // Bouton nouvelle campagne
+  const btnNouvelleCampagne = $('btn-nouvelle-campagne');
+  if(btnNouvelleCampagne) {
+    btnNouvelleCampagne.addEventListener('click', () => {
+      const { groupements } = window.STATE;
+      if (!groupements || !groupements.length) {
+        alert('Créez d\'abord un groupement avant de créer une campagne.');
+        return;
+      }
+      
+      // Si un seul groupement, l'ouvrir directement
+      if (groupements.length === 1) {
+        openNouvelleCampagne(groupements[0].id);
+        return;
+      }
+      
+      // Sinon, afficher un sélecteur
+      const selectHTML = `
+        <div class="modal-box">
+          <div class="mtop">
+            <h2>Nouvelle Campagne</h2>
+            <button class="mclose" onclick="closeModal()">×</button>
+          </div>
+          <div class="mbody">
+            <div class="form-group">
+              <label>Sélectionnez un groupement *</label>
+              <select id="select-groupement" class="finput">
+                <option value="">-- Choisissez un groupement --</option>
+                ${groupements.map(g => `
+                  <option value="${g.id}">${esc(g.nom)}</option>
+                `).join('')}
+              </select>
+            </div>
+          </div>
+          <div class="mfoot">
+            <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+            <button class="btn btn-gold" id="btn-confirmer-groupement">Continuer</button>
+          </div>
+        </div>
+      `;
+      
+      openModal(selectHTML);
+      
+      document.getElementById('btn-confirmer-groupement').onclick = () => {
+        const groupementId = document.getElementById('select-groupement').value;
+        if (!groupementId) {
+          toast('Veuillez sélectionner un groupement', true);
+          return;
+        }
+        closeModal();
+        openNouvelleCampagne(groupementId);
+      };
+    });
   }
 
   // Navigation tabs
@@ -438,7 +497,7 @@ font-weight:600;text-transform:uppercase
 .type-doux{background:#fff0e0;color:#c90}
 
 .vin-list-item{
-display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:1rem;align-items:center;
+display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr auto;gap:1rem;align-items:center;
 padding:.8rem;background:rgba(248,245,239,.6);border-radius:4px;margin-bottom:.5rem
 }
 .vin-list-item:hover{background:rgba(248,245,239,1)}
@@ -478,6 +537,10 @@ padding:.8rem;background:rgba(248,245,239,.6);border-radius:4px;margin-bottom:.5
 <header id="app-header">
   <h1>🍷 GFA Manager</h1>
   <div class="subtitle">Panneau d'administration</div>
+  <button id="btn-nouvelle-campagne" class="btn btn-gold btn-sm" 
+    style="position:absolute;top:1.5rem;right:12rem;">
+    🍷 Nouvelle Campagne
+  </button>
   <button id="logout-btn">Se déconnecter</button>
 </header>
 
@@ -667,15 +730,19 @@ function renderVins() {
                       <div>
                         <div style="font-weight:600;color:var(--dark)">${esc(v.nom)}</div>
                         <div style="font-size:.85rem;color:#666">
-                          ${vigneron ? esc(vigneron.domaine) : 'Vigneron inconnu'} 
-                          ${v.millesime ? ` • ${esc(v.millesime)}` : ''}
+                          ${v.millesime ? esc(v.millesime) + ' • ' : ''}${esc(v.appellation||'—')}
                         </div>
                       </div>
-                      <div style="font-size:.9rem;color:#666">${esc(v.appellation||'—')}</div>
+                      <div style="font-size:.9rem;color:#666">
+                        ${vigneron ? esc(vigneron.domaine) : 'Vigneron inconnu'}
+                      </div>
+                      <div>
+                        <span class="type-badge type-${v.type}">${v.type}</span>
+                      </div>
                       <div style="font-weight:700;color:var(--burg)">${v.prixUnitaire.toFixed(2)} €</div>
                       <div style="display:flex;gap:.5rem">
-                        <button class="btn btn-sm btn-secondary" onclick="openModalVin('${v.id}')">✏️</button>
-                        <button class="btn btn-sm btn-danger" onclick="supprimerVin('${v.id}')">🗑️</button>
+                        <button class="btn btn-sm btn-secondary btn-edit-vin" data-vin-id="${v.id}">✏️</button>
+                        <button class="btn btn-sm btn-danger btn-delete-vin" data-vin-id="${v.id}">🗑️</button>
                       </div>
                     </div>
                   `;
@@ -827,7 +894,7 @@ function openModalVigneron(vigneronId = null) {
       </div>
       <div class="mfoot">
         <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
-        ${isEdit ? `<button class="btn btn-danger" onclick="supprimerVigneron('${vigneronId}')">Supprimer</button>` : ''}
+        ${isEdit ? `<button class="btn btn-danger" id="delete-vigneron">Supprimer</button>` : ''}
         <button class="btn btn-gold" id="save-vigneron">Enregistrer</button>
       </div>
     </div>
@@ -868,6 +935,33 @@ function openModalVigneron(vigneronId = null) {
       toast('Erreur lors de l\'enregistrement', true);
     }
   };
+  
+  // Bouton supprimer
+  if (isEdit) {
+    const btnDelete = document.getElementById('delete-vigneron');
+    if (btnDelete) {
+      btnDelete.onclick = async () => {
+        // Vérifier si des vins utilisent ce vigneron
+        const vinsVigneron = window.STATE.vins.filter(v => v.vigneronId === vigneronId);
+        if (vinsVigneron.length > 0) {
+          toast(`Impossible de supprimer : ${vinsVigneron.length} vin(s) associé(s)`, true);
+          return;
+        }
+        
+        if (!confirm('Supprimer ce vigneron définitivement ?')) return;
+        
+        try {
+          await window.GFA.deleteVigneron(vigneronId);
+          toast('Vigneron supprimé');
+          await loadAll();
+          closeModal();
+        } catch(err) {
+          console.error(err);
+          toast('Erreur lors de la suppression', true);
+        }
+      };
+    }
+  }
 }
 
 async function supprimerVigneron(id) {
@@ -967,7 +1061,7 @@ function openModalVin(vinId = null) {
       </div>
       <div class="mfoot">
         <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
-        ${isEdit ? `<button class="btn btn-danger" onclick="supprimerVin('${vinId}')">Supprimer</button>` : ''}
+        ${isEdit ? `<button class="btn btn-danger" id="delete-vin">Supprimer</button>` : ''}
         <button class="btn btn-gold" id="save-vin">Enregistrer</button>
       </div>
     </div>
@@ -1012,6 +1106,26 @@ function openModalVin(vinId = null) {
       toast('Erreur lors de l\'enregistrement', true);
     }
   };
+  
+  // Bouton supprimer
+  if (isEdit) {
+    const btnDelete = document.getElementById('delete-vin');
+    if (btnDelete) {
+      btnDelete.onclick = async () => {
+        if (!confirm('Supprimer ce vin définitivement ?')) return;
+        
+        try {
+          await window.GFA.deleteVin(vinId);
+          toast('Vin supprimé');
+          await loadAll();
+          closeModal();
+        } catch(err) {
+          console.error(err);
+          toast('Erreur lors de la suppression', true);
+        }
+      };
+    }
+  }
 }
 
 async function supprimerVin(id) {
@@ -1180,14 +1294,9 @@ async function openFicheGroupement(id) {
   
   const box = `
     <div class="modal-box" style="max-width:900px">
-      <div class="mtop" style="position:relative">
+      <div class="mtop">
         <h2>${esc(g.nom)}</h2>
         <button class="mclose" onclick="closeModal()">×</button>
-        <button class="btn btn-gold btn-sm" 
-          style="position:absolute;top:1rem;right:4rem;z-index:10"
-          onclick="closeModal();openNouvelleCampagne('${id}')">
-          🍷 Nouvelle Campagne
-        </button>
       </div>
       <div class="mbody">
         <!-- Informations générales -->
@@ -1259,12 +1368,121 @@ async function openFicheGroupement(id) {
   openModal(box);
 }
 
-// Fonction pour ouvrir le modal d'associé (à implémenter si besoin)
-function openModalAssocie(groupementId, associeId = null) {
-  // Pour l'instant, on affiche juste un message
-  // Cette fonction peut être implémentée plus tard pour gérer les associés
-  toast('Gestion des associés - À implémenter selon vos besoins');
-  closeModal();
+// Fonction pour ouvrir le modal d'associé
+async function openModalAssocie(groupementId, associeId = null) {
+  const groupement = window.STATE.groupements.find(g => g.id === groupementId);
+  if (!groupement) return;
+  
+  const associes = await window.GFA.getAssocies(groupementId);
+  const associe = associeId ? associes.find(a => a.id === associeId) : null;
+  const isEdit = !!associe;
+  
+  const box = `
+    <div class="modal-box">
+      <div class="mtop">
+        <h2>${isEdit ? 'Modifier l\'associé' : 'Nouvel associé'}</h2>
+        <button class="mclose" onclick="closeModal()">×</button>
+      </div>
+      <div class="mbody">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Prénom *</label>
+            <input type="text" id="a-prenom" class="finput" value="${esc(associe?.prenom||'')}" required>
+          </div>
+          <div class="form-group">
+            <label>Nom *</label>
+            <input type="text" id="a-nom" class="finput" value="${esc(associe?.nom||'')}" required>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label>Email *</label>
+          <input type="email" id="a-email" class="finput" value="${esc(associe?.email||'')}" required>
+        </div>
+        
+        <div class="form-group">
+          <label>Nombre de parts *</label>
+          <input type="number" id="a-parts" class="finput" value="${associe?.parts||0}" min="0" required>
+        </div>
+        
+        <div class="form-group">
+          <label>Token (généré automatiquement)</label>
+          <input type="text" id="a-token" class="finput" value="${esc(associe?.token||'')}" readonly 
+            style="background:#f5f5f5;cursor:not-allowed">
+        </div>
+        
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="a-actif" ${associe?.actif !== false ? 'checked' : ''}>
+            Associé actif
+          </label>
+        </div>
+      </div>
+      <div class="mfoot">
+        <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+        ${isEdit ? `<button class="btn btn-danger" id="delete-associe">Supprimer</button>` : ''}
+        <button class="btn btn-gold" id="save-associe">Enregistrer</button>
+      </div>
+    </div>
+  `;
+  
+  openModal(box);
+  
+  // Générer un token si nouvel associé
+  if (!isEdit) {
+    document.getElementById('a-token').value = window.GFA.genToken();
+  }
+  
+  // Bouton sauvegarder
+  document.getElementById('save-associe').onclick = async () => {
+    const prenom = document.getElementById('a-prenom').value.trim();
+    const nom = document.getElementById('a-nom').value.trim();
+    const email = document.getElementById('a-email').value.trim();
+    const parts = parseInt(document.getElementById('a-parts').value);
+    
+    if (!prenom || !nom || !email || isNaN(parts)) {
+      toast('Veuillez remplir tous les champs obligatoires', true);
+      return;
+    }
+    
+    const data = {
+      id: associeId,
+      prenom,
+      nom,
+      email,
+      parts,
+      token: document.getElementById('a-token').value,
+      actif: document.getElementById('a-actif').checked
+    };
+    
+    try {
+      await window.GFA.saveAssocie(groupementId, data);
+      toast(`Associé ${isEdit ? 'modifié' : 'créé'} avec succès`);
+      closeModal();
+      // Rouvrir la fiche groupement
+      await openFicheGroupement(groupementId);
+    } catch(err) {
+      console.error(err);
+      toast('Erreur lors de l\'enregistrement', true);
+    }
+  };
+  
+  // Bouton supprimer
+  if (isEdit) {
+    document.getElementById('delete-associe').onclick = async () => {
+      if (!confirm(`Supprimer ${associe.prenom} ${associe.nom} définitivement ?`)) return;
+      
+      try {
+        await window.GFA.deleteAssocie(groupementId, associeId);
+        toast('Associé supprimé');
+        closeModal();
+        await openFicheGroupement(groupementId);
+      } catch(err) {
+        console.error(err);
+        toast('Erreur lors de la suppression', true);
+      }
+    };
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1645,8 +1863,29 @@ function esc(s) {
 }
 
 function attachEventListeners() {
-  // Les event listeners inline sont gérés par onclick= dans le HTML généré
-  // Les autres sont attachés dynamiquement après render
+  // Event listeners pour les boutons d'édition et suppression de vins
+  document.querySelectorAll('.btn-edit-vin').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const vinId = btn.getAttribute('data-vin-id');
+      openModalVin(vinId);
+    });
+  });
+  
+  document.querySelectorAll('.btn-delete-vin').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const vinId = btn.getAttribute('data-vin-id');
+      if (!confirm('Supprimer ce vin définitivement ?')) return;
+      
+      try {
+        await window.GFA.deleteVin(vinId);
+        toast('Vin supprimé');
+        await loadAll();
+      } catch(err) {
+        console.error(err);
+        toast('Erreur lors de la suppression', true);
+      }
+    });
+  });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1659,9 +1898,7 @@ window.openModalGroupement = openModalGroupement;
 window.supprimerGroupement = supprimerGroupement;
 window.openFicheGroupement = openFicheGroupement;
 window.openModalVigneron = openModalVigneron;
-window.supprimerVigneron = supprimerVigneron;
 window.openModalVin = openModalVin;
-window.supprimerVin = supprimerVin;
 window.openNouvelleCampagne = openNouvelleCampagne;
 window.genererPDFCampagne = genererPDFCampagne;
 window.openModalAssocie = openModalAssocie;
@@ -1669,6 +1906,7 @@ window.voirDetailsCampagne = voirDetailsCampagne;
 window.toast = toast;
 window.loadAll = loadAll;
 window.render = render;
+window.esc = esc;
 
 </script>
 
