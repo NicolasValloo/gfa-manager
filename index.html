@@ -663,7 +663,7 @@ function renderVignerons() {
       ` : `
         <div class="grid">
           ${vignerons.map(v => `
-            <div class="fiche-card" onclick="openModalVigneron('${v.id}')">
+            <div class="fiche-card vigneron-card" data-vigneron-id="${v.id}">
               <h3>${esc(v.domaine)}</h3>
               <p><strong>${esc(v.prenom)} ${esc(v.nom)}</strong></p>
               <p>📍 ${esc(v.region||'—')}</p>
@@ -735,7 +735,7 @@ function renderVins() {
                       <div>
                         <div style="font-weight:600;color:var(--dark)">${esc(v.nom)}</div>
                         <div style="font-size:.85rem;color:#666">
-                          ${v.millesime ? esc(v.millesime) + ' • ' : ''}${esc(v.appellation||'—')}
+                          ${esc(v.appellation||'—')}
                         </div>
                       </div>
                       <div style="font-size:.9rem;color:#666">
@@ -1045,18 +1045,9 @@ function openModalVin(vinId = null) {
         
         <div class="form-row">
           <div class="form-group">
-            <label>Millésime</label>
-            <input type="text" id="vin-millesime" class="finput" value="${esc(vin?.millesime||'')}" placeholder="Ex: 2020">
-          </div>
-          <div class="form-group">
             <label>Appellation</label>
             <input type="text" id="vin-appellation" class="finput" value="${esc(vin?.appellation||'')}" placeholder="Ex: Pommard">
           </div>
-        </div>
-        
-        <div class="form-group">
-          <label>Stock disponible</label>
-          <input type="number" id="vin-stock" class="finput" value="${vin?.stock||''}" min="0" placeholder="Laisser vide si illimité">
         </div>
         
         <div class="form-group">
@@ -1086,7 +1077,6 @@ function openModalVin(vinId = null) {
     }
     
     const vigneron = vignerons.find(v => v.id === vigneronId);
-    const stockVal = document.getElementById('vin-stock').value.trim();
     
     const data = {
       id: vinId,
@@ -1095,9 +1085,9 @@ function openModalVin(vinId = null) {
       nom,
       type,
       prixUnitaire: prix,
-      millesime: document.getElementById('vin-millesime').value.trim(),
+      millesime: null,
       appellation: document.getElementById('vin-appellation').value.trim(),
-      stock: stockVal ? parseInt(stockVal) : null,
+      stock: null,
       description: document.getElementById('vin-description').value.trim()
     };
     
@@ -1829,7 +1819,7 @@ function renderVinsParType(vinsVigneron) {
               <input type="checkbox" class="vin-check" data-vin-id="${v.id}" checked style="width:18px;height:18px">
               <div style="flex:1">
                 <div style="font-weight:600">${esc(v.nom)}</div>
-                <div style="font-size:.85rem;color:#666">${esc(v.appellation||'')} ${v.millesime ? '• '+esc(v.millesime) : ''}</div>
+                <div style="font-size:.85rem;color:#666">${esc(v.appellation||'')}</div>
               </div>
               <div style="font-weight:700;color:var(--burg)">${v.prixUnitaire.toFixed(2)} €</div>
             </div>
@@ -2052,12 +2042,26 @@ function attachEventListeners() {
       try {
         const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
         await deleteDoc(doc(window.GFA.db, "vins", vinId));
+        console.log('Vin supprimé de Firestore'); // Debug
+        
+        // Recharger immédiatement les données
+        window.STATE.vins = await window.GFA.getVins();
+        console.log('Vins rechargés:', window.STATE.vins.length); // Debug
+        
         toast('Vin supprimé');
-        await loadAll();
+        render(); // Forcer le re-render
       } catch(err) {
         console.error('Erreur suppression vin:', err);
         toast('Erreur lors de la suppression', true);
       }
+    });
+  });
+  
+  // Event listeners pour les cartes vignerons
+  document.querySelectorAll('.vigneron-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const vigneronId = card.getAttribute('data-vigneron-id');
+      if (vigneronId) openModalVigneron(vigneronId);
     });
   });
 }
