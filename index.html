@@ -613,7 +613,7 @@ window.render = render;
 // ══════════════════════════════════════════════════════════════
 
 function renderGroupements() {
-  const { groupements } = window.STATE;
+  const { groupements, vignerons } = window.STATE;
   
   return `
     <div class="card">
@@ -625,15 +625,20 @@ function renderGroupements() {
         <p style="color:#999;font-style:italic">Aucun groupement créé. Cliquez sur "Nouveau groupement" pour commencer.</p>
       ` : `
         <div class="grid">
-          ${groupements.map(g => `
-            <div class="fiche-card" onclick="openFicheGroupement('${g.id}')">
-              <h3>${esc(g.nom)}</h3>
-              <p><strong>Vigneron:</strong> ${esc(g.vigneron||'—')}</p>
-              <p><strong>Associés:</strong> ${g.nb_associes || 0}</p>
-              <p><strong>Parts totales:</strong> ${g.parts_totales || 0}</p>
-              ${g.actif ? '<span class="badge badge-actif">Actif</span>' : '<span class="badge badge-inactif">Inactif</span>'}
-            </div>
-          `).join('')}
+          ${groupements.map(g => {
+            const vigneron = g.vigneronId ? vignerons.find(v => v.id === g.vigneronId) : null;
+            const vigneronNom = vigneron ? vigneron.domaine : (g.vigneron || '—');
+            
+            return `
+              <div class="fiche-card" onclick="openFicheGroupement('${g.id}')">
+                <h3>${esc(g.nom)}</h3>
+                <p><strong>Vigneron:</strong> ${esc(vigneronNom)}</p>
+                <p><strong>Associés:</strong> ${g.nb_associes || 0}</p>
+                <p><strong>Parts totales:</strong> ${g.parts_totales || 0}</p>
+                ${g.actif !== false ? '<span class="badge badge-actif">Actif</span>' : '<span class="badge badge-inactif">Inactif</span>'}
+              </div>
+            `;
+          }).join('')}
         </div>
       `}
     </div>
@@ -1148,7 +1153,7 @@ async function supprimerVin(id) {
 function openModalGroupement(groupementId = null) {
   const groupement = groupementId ? window.STATE.groupements.find(g => g.id === groupementId) : null;
   const isEdit = !!groupement;
-  const { vignerons } = window.STATE;
+  const { vignerons, vins } = window.STATE;
   
   const box = `
     <div class="modal-box">
@@ -1174,8 +1179,6 @@ function openModalGroupement(groupementId = null) {
             <option value="__NEW__">➕ Créer un nouveau vigneron</option>
           </select>
           <input type="hidden" id="g-vigneron-id" value="${groupement?.vigneronId || ''}">
-          <input type="text" id="g-vigneron-nom" class="finput" value="${esc(groupement?.vigneron||'')}" 
-            placeholder="Nom du vigneron (optionnel si sélectionné ci-dessus)" style="margin-top:.5rem">
         </div>
         
         <div class="form-row">
@@ -1190,13 +1193,13 @@ function openModalGroupement(groupementId = null) {
         </div>
         
         <div class="form-group">
-          <label>Prix bouteille de référence (€)</label>
-          <input type="number" id="g-prix-ref" class="finput" value="${groupement?.prix_bouteille_reference||''}" step="0.01" min="0">
-        </div>
-        
-        <div class="form-group">
           <label>Appellation de référence</label>
-          <input type="text" id="g-appellation" class="finput" value="${esc(groupement?.appellation||'')}">
+          <select id="g-appellation" class="finput">
+            <option value="">-- Sélectionnez une appellation --</option>
+          </select>
+          <small style="color:#666;font-size:.85rem;display:block;margin-top:.3rem">
+            Sélectionnez d'abord un vigneron pour voir ses vins
+          </small>
         </div>
         
         <div class="form-group">
@@ -1208,13 +1211,43 @@ function openModalGroupement(groupementId = null) {
       </div>
       <div class="mfoot">
         <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
-        ${isEdit ? `<button class="btn btn-danger" onclick="supprimerGroupement('${groupementId}')">Supprimer</button>` : ''}
+        ${isEdit ? `<button class="btn btn-danger" id="delete-groupement">Supprimer</button>` : ''}
         <button class="btn btn-gold" id="save-groupement">Enregistrer</button>
       </div>
     </div>
   `;
   
   openModal(box);
+  
+  // Fonction pour mettre à jour les appellations selon le vigneron
+  function updateAppellations(vigneronId) {
+    const selectAppellation = document.getElementById('g-appellation');
+    if (!selectAppellation) return;
+    
+    if (!vigneronId) {
+      selectAppellation.innerHTML = '<option value="">-- Sélectionnez d\'abord un vigneron --</option>';
+      return;
+    }
+    
+    const vinsVigneron = vins.filter(v => v.vigneronId === vigneronId);
+    
+    if (!vinsVigneron.length) {
+      selectAppellation.innerHTML = '<option value="">-- Ce vigneron n\'a pas encore de vins --</option>';
+      return;
+    }
+    
+    // Extraire les appellations uniques
+    const appellations = [...new Set(vinsVigneron.map(v => v.nom).filter(Boolean))];
+    
+    selectAppellation.innerHTML = `
+      <option value="">-- Choisir une appellation de référence --</option>
+      ${appellations.map(app => `
+        <option value="${esc(app)}" ${groupement?.appellation === app ? 'selected' : ''}>
+          ${esc(app)}
+        </option>
+      `).join('')}
+    `;
+  }
   
   // Listener pour le select vigneron
   const selectVigneron = document.getElementById('g-vigneron-select');
@@ -1225,17 +1258,17 @@ function openModalGroupement(groupementId = null) {
         openModalVigneron();
       } else {
         document.getElementById('g-vigneron-id').value = e.target.value;
-        // Mettre à jour le nom si un vigneron est sélectionné
-        if (e.target.value) {
-          const vigneron = vignerons.find(v => v.id === e.target.value);
-          if (vigneron) {
-            document.getElementById('g-vigneron-nom').value = vigneron.domaine;
-          }
-        }
+        updateAppellations(e.target.value);
       }
     });
+    
+    // Charger les appellations si un vigneron est déjà sélectionné
+    if (groupement?.vigneronId) {
+      updateAppellations(groupement.vigneronId);
+    }
   }
   
+  // Bouton sauvegarder
   document.getElementById('save-groupement').onclick = async () => {
     const nom = document.getElementById('g-nom').value.trim();
     if (!nom) {
@@ -1244,16 +1277,13 @@ function openModalGroupement(groupementId = null) {
     }
     
     const vigneronId = document.getElementById('g-vigneron-id').value;
-    const vigneronNom = document.getElementById('g-vigneron-nom').value.trim();
     
     const data = {
       id: groupementId,
       nom,
       vigneronId: vigneronId || null,
-      vigneron: vigneronNom,
       parts_totales: parseInt(document.getElementById('g-parts-tot').value) || 0,
       parts_pour_bouteille: parseFloat(document.getElementById('g-ppb').value) || 1,
-      prix_bouteille_reference: parseFloat(document.getElementById('g-prix-ref').value) || null,
       appellation: document.getElementById('g-appellation').value.trim(),
       actif: document.getElementById('g-actif').checked
     };
@@ -1268,6 +1298,26 @@ function openModalGroupement(groupementId = null) {
       toast('Erreur lors de l\'enregistrement', true);
     }
   };
+  
+  // Bouton supprimer
+  if (isEdit) {
+    const btnDelete = document.getElementById('delete-groupement');
+    if (btnDelete) {
+      btnDelete.onclick = async () => {
+        if (!confirm('Supprimer ce groupement et tous ses associés définitivement ?')) return;
+        
+        try {
+          await window.GFA.deleteGroupement(groupementId);
+          toast('Groupement supprimé');
+          await loadAll();
+          closeModal();
+        } catch(err) {
+          console.error(err);
+          toast('Erreur lors de la suppression', true);
+        }
+      };
+    }
+  }
 }
 
 async function supprimerGroupement(id) {
@@ -1288,6 +1338,9 @@ async function openFicheGroupement(id) {
   const g = window.STATE.groupements.find(x => x.id === id);
   if (!g) return;
   
+  const vigneron = g.vigneronId ? window.STATE.vignerons.find(v => v.id === g.vigneronId) : null;
+  const vigneronNom = vigneron ? vigneron.domaine : (g.vigneron || '—');
+  
   // Charger les associés et campagnes
   const associes = await window.GFA.getAssocies(id);
   const associesActifs = associes.filter(a => a.actif !== false);
@@ -1306,10 +1359,9 @@ async function openFicheGroupement(id) {
               Informations
             </h3>
             <div style="display:grid;gap:.8rem">
-              <div><strong>Vigneron:</strong> ${esc(g.vigneron||'—')}</div>
+              <div><strong>Vigneron:</strong> ${esc(vigneronNom)}</div>
               <div><strong>Parts totales:</strong> ${g.parts_totales || 0}</div>
               <div><strong>Parts/Bouteille:</strong> ${g.parts_pour_bouteille || 1}</div>
-              <div><strong>Prix référence:</strong> ${g.prix_bouteille_reference ? g.prix_bouteille_reference.toFixed(2) + ' €' : '—'}</div>
               <div><strong>Appellation:</strong> ${esc(g.appellation||'—')}</div>
               <div><strong>Statut:</strong> ${g.actif !== false ? '<span class="badge badge-actif">Actif</span>' : '<span class="badge badge-inactif">Inactif</span>'}</div>
             </div>
