@@ -1405,11 +1405,7 @@ async function openModalAssocie(groupementId, associeId = null) {
           <input type="number" id="a-parts" class="finput" value="${associe?.parts||0}" min="0" required>
         </div>
         
-        <div class="form-group">
-          <label>Token (généré automatiquement)</label>
-          <input type="text" id="a-token" class="finput" value="${esc(associe?.token||'')}" readonly 
-            style="background:#f5f5f5;cursor:not-allowed">
-        </div>
+        <input type="hidden" id="a-token" value="${esc(associe?.token||'')}">
         
         <div class="form-group">
           <label>
@@ -1489,22 +1485,151 @@ async function openModalAssocie(groupementId, associeId = null) {
 //  NOUVELLE FONCTION: Création campagne par vigneron
 // ══════════════════════════════════════════════════════════════
 
-async function openNouvelleCampagne(groupementId) {
-  const g = window.STATE.groupements.find(x => x.id === groupementId);
-  if (!g) return;
-  
-  const associes = await window.GFA.getAssocies(groupementId);
-  const associesActifs = associes.filter(a => a.actif !== false);
+async function openNouvelleCampagne(groupementId = null) {
   const anneeActuelle = new Date().getFullYear();
-  const { vignerons, vins } = window.STATE;
+  const { vignerons, vins, groupements } = window.STATE;
   
-  const box = `
-    <div class="modal-box" style="max-width:900px">
+  // Étape 1 : Sélection du vigneron
+  const box1 = `
+    <div class="modal-box" style="max-width:700px">
       <div class="mtop">
-        <h2>Créer une nouvelle campagne</h2>
+        <h2>Nouvelle Campagne - Sélection du vigneron</h2>
         <button class="mclose" onclick="closeModal()">×</button>
       </div>
       <div class="mbody">
+        <div class="form-group">
+          <label>Sélectionnez un vigneron *</label>
+          <select id="nc-vigneron-select" class="finput">
+            <option value="">-- Choisissez un vigneron --</option>
+            ${vignerons.map(v => `
+              <option value="${v.id}">${esc(v.domaine)} (${esc(v.region)})</option>
+            `).join('')}
+          </select>
+        </div>
+        <div id="nc-groupements-info" style="margin-top:1rem;display:none">
+          <p style="color:#666;font-size:.9rem;margin-bottom:.5rem">
+            <strong>Groupements concernés par ce vigneron :</strong>
+          </p>
+          <div id="nc-groupements-list"></div>
+        </div>
+      </div>
+      <div class="mfoot">
+        <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+        <button class="btn btn-gold" id="nc-continuer" disabled>Continuer</button>
+      </div>
+    </div>
+  `;
+  
+  openModal(box1);
+  
+  // Listener pour afficher les groupements du vigneron sélectionné
+  const selectVigneron = document.getElementById('nc-vigneron-select');
+  const btnContinuer = document.getElementById('nc-continuer');
+  const groupementsInfo = document.getElementById('nc-groupements-info');
+  const groupementsList = document.getElementById('nc-groupements-list');
+  
+  selectVigneron.addEventListener('change', () => {
+    const vigneronId = selectVigneron.value;
+    if (!vigneronId) {
+      groupementsInfo.style.display = 'none';
+      btnContinuer.disabled = true;
+      return;
+    }
+    
+    // Trouver tous les groupements qui ont ce vigneron
+    const groupementsVigneron = groupements.filter(g => g.vigneronId === vigneronId);
+    
+    if (groupementsVigneron.length === 0) {
+      groupementsList.innerHTML = '<p style="color:#c33;font-size:.9rem">⚠️ Aucun groupement n\'utilise ce vigneron. Créez d\'abord un groupement.</p>';
+      groupementsInfo.style.display = 'block';
+      btnContinuer.disabled = true;
+      return;
+    }
+    
+    groupementsList.innerHTML = groupementsVigneron.map(g => `
+      <div style="padding:.5rem;background:rgba(248,245,239,.6);border-radius:4px;margin-bottom:.3rem">
+        ✓ ${esc(g.nom)}
+      </div>
+    `).join('');
+    groupementsInfo.style.display = 'block';
+    btnContinuer.disabled = false;
+  });
+  
+  btnContinuer.addEventListener('click', async () => {
+    const vigneronId = selectVigneron.value;
+    if (!vigneronId) return;
+    
+    closeModal();
+    await afficherFormulaireCampagne(vigneronId);
+  });
+}
+
+async function afficherFormulaireCampagne(vigneronId) {
+  const anneeActuelle = new Date().getFullYear();
+  const { vignerons, vins, groupements } = window.STATE;
+  
+  const vigneron = vignerons.find(v => v.id === vigneronId);
+  if (!vigneron) return;
+  
+  // Trouver tous les groupements de ce vigneron
+  const groupementsVigneron = groupements.filter(g => g.vigneronId === vigneronId);
+  
+  // Collecter TOUS les associés de TOUS ces groupements
+  const tousAssocies = [];
+  const associesParEmail = new Map(); // Pour fusionner les doublons
+  
+  for (const g of groupementsVigneron) {
+    const associes = await window.GFA.getAssocies(g.id);
+    const associesActifs = associes.filter(a => a.actif !== false);
+    
+    for (const a of associesActifs) {
+      const key = a.email.toLowerCase();
+      if (associesParEmail.has(key)) {
+        // Associé déjà présent : cumuler les parts et montants
+        const existing = associesParEmail.get(key);
+        existing.parts += (a.parts || 0);
+        existing.groupements.push({ id: g.id, nom: g.nom, parts: a.parts || 0 });
+        // Recalculer le montant
+        const ppb = g.parts_pour_bouteille || 1;
+        const prix = g.prix_bouteille_reference || 0;
+        existing.montant += ((a.parts || 0) / ppb) * prix;
+      } else {
+        // Nouvel associé
+        const ppb = g.parts_pour_bouteille || 1;
+        const prix = g.prix_bouteille_reference || 0;
+        const montant = ((a.parts || 0) / ppb) * prix;
+        
+        associesParEmail.set(key, {
+          ...a,
+          groupementId: g.id,
+          groupementNom: g.nom,
+          groupements: [{ id: g.id, nom: g.nom, parts: a.parts || 0 }],
+          montant: montant,
+          parts: a.parts || 0
+        });
+      }
+    }
+  }
+  
+  const associesUniques = Array.from(associesParEmail.values());
+  
+  // Filtrer les vins du vigneron
+  const vinsVigneron = vins.filter(v => v.vigneronId === vigneronId);
+  
+  const box = `
+    <div class="modal-box" style="max-width:900px;max-height:90vh;overflow-y:auto">
+      <div class="mtop">
+        <h2>Créer une campagne - ${esc(vigneron.domaine)}</h2>
+        <button class="mclose" onclick="closeModal()">×</button>
+      </div>
+      <div class="mbody">
+        <div style="background:rgba(201,169,97,.1);padding:1rem;border-radius:4px;margin-bottom:1.5rem">
+          <p style="font-size:.9rem;color:var(--dark)">
+            <strong>ℹ️ Information :</strong> Cette campagne sera créée pour ${groupementsVigneron.length} groupement(s) : 
+            ${groupementsVigneron.map(g => esc(g.nom)).join(', ')}
+          </p>
+        </div>
+        
         <div class="form-row">
           <div class="form-group">
             <label>Année</label>
@@ -1516,52 +1641,66 @@ async function openNouvelleCampagne(groupementId) {
           </div>
         </div>
         
-        <div class="form-group">
-          <label>Prix bouteille de référence (€)</label>
-          <input type="number" id="nc-prix-ref" class="finput" step="0.01" min="0" 
-            value="${g.prix_bouteille_reference||''}" placeholder="Pour calcul des crédits">
-        </div>
-        
         <div style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid rgba(107,30,60,.1)">
           <div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:700;color:var(--burg);margin-bottom:.8rem">
-            Sélectionner un vigneron
+            Sélectionner les vins
           </div>
-          <select id="nc-vigneron" class="finput" style="margin-bottom:1rem">
-            <option value="">-- Choisissez un vigneron --</option>
-            ${vignerons.map(v => `
-              <option value="${v.id}">${esc(v.domaine)} (${esc(v.region)})</option>
-            `).join('')}
-          </select>
           
-          <div id="nc-vins-container"></div>
+          ${!vinsVigneron.length ? `
+            <p style="color:#999;font-style:italic">
+              Ce vigneron n'a pas encore de vins. Créez-en dans l'onglet "Vins".
+            </p>
+          ` : `
+            <div id="nc-vins-container">
+              ${renderVinsParType(vinsVigneron)}
+            </div>
+          `}
         </div>
         
         <div style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid rgba(107,30,60,.1)">
           <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;color:var(--burg);margin-bottom:.8rem">
-            Notifier les associés (${associesActifs.length})
+            Associés concernés (${associesUniques.length})
           </div>
-          <div id="nc-assoc-list" style="display:flex;flex-direction:column;gap:.5rem;max-height:200px;overflow-y:auto">
-            ${associesActifs.map(a=>`
-              <div style="display:flex;align-items:center;justify-content:space-between;
-                padding:.6rem 1rem;border:1px solid rgba(107,30,60,.12);border-radius:3px;
-                background:rgba(248,245,239,.6)">
-                <span style="font-size:.9rem"><strong>${esc(a.prenom)} ${esc(a.nom)}</strong>
-                  <span style="color:#999;font-size:.82rem;margin-left:.5rem">${esc(a.email)}</span>
-                </span>
-                <button class="nc-mail-btn btn btn-gold btn-sm" data-aid="${a.id}">
-                  ✉️ Envoyer
-                </button>
-              </div>`).join('')}
-            ${!associesActifs.length ? '<p style="color:#aaa;font-style:italic;font-size:.85rem">Aucun associé actif.</p>' : ''}
+          <div style="font-size:.85rem;color:#666;margin-bottom:.8rem">
+            ${associesUniques.some(a => a.groupements.length > 1) 
+              ? '⚠️ Certains associés sont dans plusieurs groupements. Leurs montants ont été cumulés.'
+              : 'Liste des associés actifs.'}
+          </div>
+          <div id="nc-assoc-list" style="display:flex;flex-direction:column;gap:.5rem;max-height:250px;overflow-y:auto">
+            ${associesUniques.map(a => {
+              const multiGroupes = a.groupements.length > 1;
+              return `
+                <div style="display:flex;align-items:center;justify-content:space-between;
+                  padding:.6rem 1rem;border:1px solid rgba(107,30,60,.12);border-radius:3px;
+                  background:rgba(248,245,239,.6);${multiGroupes ? 'border-left:4px solid var(--gold)' : ''}">
+                  <div style="flex:1">
+                    <span style="font-size:.9rem"><strong>${esc(a.prenom)} ${esc(a.nom)}</strong>
+                      <span style="color:#999;font-size:.82rem;margin-left:.5rem">${esc(a.email)}</span>
+                    </span>
+                    ${multiGroupes ? `
+                      <div style="font-size:.75rem;color:var(--gold);margin-top:.2rem">
+                        ⭐ ${a.groupements.length} groupements : ${a.groupements.map(g => `${g.nom} (${g.parts} parts)`).join(', ')}
+                      </div>
+                    ` : ''}
+                  </div>
+                  <div style="text-align:right;margin-right:1rem">
+                    <div style="font-weight:700;color:var(--burg)">${a.montant.toFixed(2)} €</div>
+                    <div style="font-size:.75rem;color:#666">${a.parts} parts</div>
+                  </div>
+                  <button class="nc-mail-btn btn btn-gold btn-sm" data-aid="${a.id}" data-gid="${a.groupementId}">
+                    ✉️
+                  </button>
+                </div>
+              `;
+            }).join('')}
+            ${!associesUniques.length ? '<p style="color:#aaa;font-style:italic;font-size:.85rem">Aucun associé actif.</p>' : ''}
           </div>
         </div>
       </div>
       <div class="mfoot" style="justify-content:space-between">
         <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
         <div style="display:flex;gap:.8rem">
-          ${associesActifs.length > 1 ? `<button class="btn btn-primary" id="nc-all">✉️ Envoyer à tous</button>` : ''}
           <button class="btn btn-gold" id="nc-create">Créer la campagne</button>
-          <button class="btn btn-secondary" id="nc-pdf">📄 Générer PDF</button>
         </div>
       </div>
     </div>
@@ -1569,172 +1708,33 @@ async function openNouvelleCampagne(groupementId) {
   
   openModal(box);
   
-  // Listener changement de vigneron
-  document.getElementById('nc-vigneron').addEventListener('change', (e) => {
-    const vigneronId = e.target.value;
-    if (!vigneronId) {
-      document.getElementById('nc-vins-container').innerHTML = '';
-      return;
-    }
-    
-    const vinsVigneron = vins.filter(v => v.vigneronId === vigneronId);
-    
-    if (!vinsVigneron.length) {
-      document.getElementById('nc-vins-container').innerHTML = `
-        <p style="color:#999;font-style:italic;margin-top:1rem">
-          Ce vigneron n'a pas encore de vins. Créez-en dans l'onglet "Vins".
-        </p>
-      `;
-      return;
-    }
-    
-    // Grouper par type
-    const vinsByType = {
-      blanc: [],
-      rosé: [],
-      rouge: [],
-      pétillant: [],
-      doux: []
-    };
-    
-    vinsVigneron.forEach(v => {
-      const type = v.type || 'rouge';
-      if (vinsByType[type]) {
-        vinsByType[type].push(v);
-      }
-    });
-    
-    const typesLabels = {
-      blanc: 'Vins Blancs',
-      rosé: 'Vins Rosés', 
-      rouge: 'Vins Rouges',
-      pétillant: 'Vins Pétillants',
-      doux: 'Vins Doux'
-    };
-    
-    let html = '<div style="margin-top:1rem">';
-    html += '<div style="font-size:.88rem;color:#777;margin-bottom:1rem">Cochez les vins à inclure dans cette campagne :</div>';
-    
-    Object.keys(vinsByType).forEach(type => {
-      const vinsType = vinsByType[type];
-      if (!vinsType.length) return;
-      
-      html += `
-        <div style="margin-bottom:1.5rem">
-          <div style="font-weight:700;color:var(--burg);margin-bottom:.5rem;display:flex;align-items:center;gap:.5rem">
-            <span class="type-badge type-${type}">${typesLabels[type]}</span>
-          </div>
-          <div style="display:grid;gap:.5rem">
-            ${vinsType.map(v => `
-              <div style="display:flex;align-items:center;gap:.8rem;padding:.6rem;background:rgba(248,245,239,.6);border-radius:4px">
-                <input type="checkbox" class="vin-check" data-vin-id="${v.id}" checked style="width:18px;height:18px">
-                <div style="flex:1">
-                  <div style="font-weight:600">${esc(v.nom)}</div>
-                  <div style="font-size:.85rem;color:#666">${esc(v.appellation||'')} ${v.millesime ? '• '+esc(v.millesime) : ''}</div>
-                </div>
-                <div style="font-weight:700;color:var(--burg)">${v.prixUnitaire.toFixed(2)} €</div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-    });
-    
-    html += '</div>';
-    document.getElementById('nc-vins-container').innerHTML = html;
-  });
+  // Stocker les données dans une variable accessible
+  window.CAMPAGNE_DATA = {
+    vigneronId,
+    vigneron,
+    groupementsVigneron,
+    associesUniques,
+    vinsVigneron
+  };
   
   // Bouton créer campagne
   document.getElementById('nc-create').onclick = async () => {
-    const annee = parseInt(document.getElementById('nc-annee').value) || anneeActuelle;
-    const fin = document.getElementById('nc-fin').value.trim();
-    const prixRef = parseFloat(document.getElementById('nc-prix-ref').value) || null;
-    const vigneronId = document.getElementById('nc-vigneron').value;
-    const createBtn = document.getElementById('nc-create');
-    
-    if (!vigneronId) {
-      toast('Veuillez sélectionner un vigneron', true);
-      return;
-    }
-    
-    // Collecter les vins sélectionnés
-    const vinsSelectionnes = [];
-    document.querySelectorAll('.vin-check:checked').forEach(cb => {
-      const vinId = cb.dataset.vinId;
-      const vin = vins.find(v => v.id === vinId);
-      if (vin) {
-        vinsSelectionnes.push(vinId);
-      }
-    });
-    
-    if (!vinsSelectionnes.length) {
-      toast('Sélectionnez au moins un vin', true);
-      return;
-    }
-    
-    createBtn.textContent = 'Création...';
-    createBtn.disabled = true;
-    
-    try {
-      const { db } = window.GFA;
-      const { collection, doc, setDoc, getDocs, updateDoc, query, where } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
-      
-      // Mise à jour prix de référence si fourni
-      if (prixRef) {
-        g.prix_bouteille_reference = prixRef;
-        await window.GFA.saveGroupement(g);
-      }
-      
-      // Créer la campagne
-      const campagneRef = doc(collection(db, 'groupements', g.id, 'campagnes'));
-      await setDoc(campagneRef, {
-        annee,
-        actif: true,
-        date_fin: fin,
-        vigneronId: vigneronId,
-        vinsIds: vinsSelectionnes,
-        prix_bouteille_reference: prixRef,
-        cree_le: new Date().toISOString()
-      });
-      
-      // Désactiver autres campagnes actives
-      const autresCampagnes = await getDocs(
-        query(collection(db, 'groupements', g.id, 'campagnes'), where('actif', '==', true))
-      );
-      for (const campDoc of autresCampagnes.docs) {
-        if (campDoc.id !== campagneRef.id) {
-          await updateDoc(doc(db, 'groupements', g.id, 'campagnes', campDoc.id), { actif: false });
-        }
-      }
-      
-      closeModal();
-      toast(`Campagne ${annee} créée avec ${vinsSelectionnes.length} vin(s)`);
-      setTimeout(() => location.reload(), 1500);
-      
-    } catch(err) {
-      console.error(err);
-      toast('Erreur lors de la création', true);
-      createBtn.textContent = 'Créer la campagne';
-      createBtn.disabled = false;
-    }
-  };
-  
-  // Bouton PDF (NOUVEAU)
-  document.getElementById('nc-pdf').onclick = () => {
-    genererPDFCampagne(g, vignerons, vins);
+    await creerCampagne();
   };
   
   // Boutons email
   document.querySelectorAll('.nc-mail-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const a = associesActifs.find(x => x.id === btn.dataset.aid);
-      if (!a) return;
+      const aid = btn.dataset.aid;
+      const gid = btn.dataset.gid;
+      const a = associesUniques.find(x => x.id === aid);
+      const g = groupementsVigneron.find(x => x.id === gid);
+      if (!a || !g) return;
       const annee = parseInt(document.getElementById('nc-annee').value) || anneeActuelle;
       const fin = document.getElementById('nc-fin').value.trim();
       window.MAIL.ouvrirMailCampagne(a, g, annee, fin);
     });
   });
-}
 
 // ══════════════════════════════════════════════════════════════
 //  GÉNÉRATION PDF (NOUVEAU)
@@ -1867,21 +1867,26 @@ function attachEventListeners() {
   document.querySelectorAll('.btn-edit-vin').forEach(btn => {
     btn.addEventListener('click', () => {
       const vinId = btn.getAttribute('data-vin-id');
-      openModalVin(vinId);
+      if (vinId) openModalVin(vinId);
     });
   });
   
   document.querySelectorAll('.btn-delete-vin').forEach(btn => {
     btn.addEventListener('click', async () => {
       const vinId = btn.getAttribute('data-vin-id');
+      if (!vinId) return;
+      
+      console.log('Suppression du vin:', vinId); // Debug
+      
       if (!confirm('Supprimer ce vin définitivement ?')) return;
       
       try {
-        await window.GFA.deleteVin(vinId);
+        const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+        await deleteDoc(doc(window.GFA.db, "vins", vinId));
         toast('Vin supprimé');
         await loadAll();
       } catch(err) {
-        console.error(err);
+        console.error('Erreur suppression vin:', err);
         toast('Erreur lors de la suppression', true);
       }
     });
