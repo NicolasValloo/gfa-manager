@@ -1735,6 +1735,123 @@ async function afficherFormulaireCampagne(vigneronId) {
       window.MAIL.ouvrirMailCampagne(a, g, annee, fin);
     });
   });
+}
+
+function renderVinsParType(vinsVigneron) {
+  const vinsByType = {
+    blanc: [],
+    rosé: [],
+    rouge: [],
+    pétillant: [],
+    doux: []
+  };
+  
+  vinsVigneron.forEach(v => {
+    const type = v.type || 'rouge';
+    if (vinsByType[type]) {
+      vinsByType[type].push(v);
+    }
+  });
+  
+  const typesLabels = {
+    blanc: 'Vins Blancs',
+    rosé: 'Vins Rosés',
+    rouge: 'Vins Rouges',
+    pétillant: 'Vins Pétillants',
+    doux: 'Vins Doux'
+  };
+  
+  let html = '';
+  Object.keys(vinsByType).forEach(type => {
+    const vinsType = vinsByType[type];
+    if (!vinsType.length) return;
+    
+    html += `
+      <div style="margin-bottom:1.5rem">
+        <div style="font-weight:700;color:var(--burg);margin-bottom:.5rem;display:flex;align-items:center;gap:.5rem">
+          <span class="type-badge type-${type}">${typesLabels[type]}</span>
+        </div>
+        <div style="display:grid;gap:.5rem">
+          ${vinsType.map(v => `
+            <div style="display:flex;align-items:center;gap:.8rem;padding:.6rem;background:rgba(248,245,239,.6);border-radius:4px">
+              <input type="checkbox" class="vin-check" data-vin-id="${v.id}" checked style="width:18px;height:18px">
+              <div style="flex:1">
+                <div style="font-weight:600">${esc(v.nom)}</div>
+                <div style="font-size:.85rem;color:#666">${esc(v.appellation||'')} ${v.millesime ? '• '+esc(v.millesime) : ''}</div>
+              </div>
+              <div style="font-weight:700;color:var(--burg)">${v.prixUnitaire.toFixed(2)} €</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  });
+  
+  return html;
+}
+
+async function creerCampagne() {
+  const { vigneronId, groupementsVigneron, vinsVigneron } = window.CAMPAGNE_DATA;
+  const annee = parseInt(document.getElementById('nc-annee').value) || new Date().getFullYear();
+  const fin = document.getElementById('nc-fin').value.trim();
+  const createBtn = document.getElementById('nc-create');
+  
+  // Collecter les vins sélectionnés
+  const vinsSelectionnes = [];
+  document.querySelectorAll('.vin-check:checked').forEach(cb => {
+    const vinId = cb.dataset.vinId;
+    const vin = vinsVigneron.find(v => v.id === vinId);
+    if (vin) {
+      vinsSelectionnes.push(vinId);
+    }
+  });
+  
+  if (!vinsSelectionnes.length) {
+    toast('Sélectionnez au moins un vin', true);
+    return;
+  }
+  
+  createBtn.textContent = 'Création...';
+  createBtn.disabled = true;
+  
+  try {
+    const { db } = window.GFA;
+    const { collection, doc, setDoc, getDocs, updateDoc, query, where } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    
+    // Créer une campagne pour CHAQUE groupement
+    for (const g of groupementsVigneron) {
+      const campagneRef = doc(collection(db, 'groupements', g.id, 'campagnes'));
+      await setDoc(campagneRef, {
+        annee,
+        actif: true,
+        date_fin: fin,
+        vigneronId: vigneronId,
+        vinsIds: vinsSelectionnes,
+        cree_le: new Date().toISOString()
+      });
+      
+      // Désactiver autres campagnes actives de ce groupement
+      const autresCampagnes = await getDocs(
+        query(collection(db, 'groupements', g.id, 'campagnes'), where('actif', '==', true))
+      );
+      for (const campDoc of autresCampagnes.docs) {
+        if (campDoc.id !== campagneRef.id) {
+          await updateDoc(doc(db, 'groupements', g.id, 'campagnes', campDoc.id), { actif: false });
+        }
+      }
+    }
+    
+    closeModal();
+    toast(`Campagne ${annee} créée pour ${groupementsVigneron.length} groupement(s) avec ${vinsSelectionnes.length} vin(s)`);
+    setTimeout(() => location.reload(), 1500);
+    
+  } catch(err) {
+    console.error(err);
+    toast('Erreur lors de la création', true);
+    createBtn.textContent = 'Créer la campagne';
+    createBtn.disabled = false;
+  }
+}
 
 // ══════════════════════════════════════════════════════════════
 //  GÉNÉRATION PDF (NOUVEAU)
